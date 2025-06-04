@@ -1,0 +1,5 @@
+fastapi[standard]
+loguru
+psycopg[binary]
+pydantic_settings
+SQLAlchemy

@@ -1,96 +1,98 @@
 """
-app.extractor.text_extractor
-----------------------------
-Pure *text-only* extraction:
-  • PDF (text layer), DOCX, plain-text files
-  • Rejects scanned/image-only PDFs and all image formats
-No OCR, no OpenAI import, no external APIs.
+Pure text‑only extractor (PDF, DOCX, TXT)
+• Tighter pdfplumber layout params  → fewer joined words
+• Text normaliser (_clean)          → remove soft‑hyphens, weird spaces, ligatures
+• Header/footer de‑duplication      → higher Word Accuracy
+• Skips empty pages instead of raising unsupported error
 """
 
 from __future__ import annotations
-
-import logging
-import mimetypes
-import uuid
+import logging, mimetypes, uuid, re, unicodedata as ud
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-import pdfplumber                  # pdfplumber==0.11.*
+import pdfplumber
 try:
-    import docx                    # python‑docx==1.1.*
-except ImportError:                # pragma: no cover
+    import docx
+except ImportError:
     docx = None
 
 log = logging.getLogger(__name__)
 
+class UnsupportedFileError(ValueError): ...
 
-# --------------------------------------------------------------------------- exceptions
-class UnsupportedFileError(ValueError):
-    """Raised when a file violates text‑only constraints."""
-
-
-# --------------------------------------------------------------------------- DTO
 @dataclass
 class Page:
     doc_id: str
     page_no: int
     text: str
 
+# --------------------------------------------------------------------- helpers
 
-# --------------------------------------------------------------------------- main extractor
+def _clean(txt: str) -> str:
+    """Unicode‑normalise, drop soft‑hyphens, collapse whitespace."""
+    txt = ud.normalize("NFKC", txt)
+    txt = txt.replace("\u00ad", "")                       # soft hyphen
+    txt = re.sub(r"-\s*\n\s*", "", txt)                  # hyphen‑linebreak
+    txt = re.sub(r"\s+", " ", txt)                       # collapse spaces
+    return txt.strip()
+
+HEADER_RE = re.compile(r"K\d{6,7}.*Page \d+ of \d+", re.I)
+
+def _strip_header(line: str) -> str:
+    return "" if HEADER_RE.search(line) else line
+
+# --------------------------------------------------------------------- extractor
+
 class TextExtractor:
-    """
-    Usage
-    -----
-    pages = TextExtractor().extract("/tmp/sample.pdf")
-    """
-
     SUPPORTED_MIME = {
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "text/plain",
     }
 
-    # .................................................................  public
-    def extract(self, file_path: str | Path, *, doc_id: str | None = None) -> List[Page]:
-        """Return list[Page] objects with raw text only."""
-        file_path = Path(file_path)
+    # ................................................................. public API
+    def extract(self, path: str | Path, *, doc_id: str | None = None) -> List[Page]:
+        path = Path(path)
         doc_id = doc_id or str(uuid.uuid4())
 
-        mime, _ = mimetypes.guess_type(file_path)
+        mime, _ = mimetypes.guess_type(path)
         mime = (mime or "").lower()
-        if mime not in self.SUPPORTED_MIME:
-            raise UnsupportedFileError(f"Unsupported MIME type: {mime}")
-
         if mime == "application/pdf":
-            return self._parse_pdf(file_path, doc_id)
-        elif mime.endswith("document"):
-            return self._parse_docx(file_path, doc_id)
-        else:
-            return self._parse_txt(file_path, doc_id)
+            return self._parse_pdf(path, doc_id)
+        if mime.endswith("document"):
+            return self._parse_docx(path, doc_id)
+        if mime.startswith("text/"):
+            return self._parse_txt(path, doc_id)
+        raise UnsupportedFileError(f"Unsupported MIME: {mime}")
 
-    # ................................................................. parsers
+    # ................................................................. PDF
     def _parse_pdf(self, path: Path, doc_id: str) -> List[Page]:
         pages: list[Page] = []
-        with pdfplumber.open(path) as pdf:
-            for i, page in enumerate(pdf.pages, start=1):
-                text = (page.extract_text() or "").strip()
-                if not text:
-                    raise UnsupportedFileError(
-                        f"{path.name} looks like a scanned/image-only PDF."
-                    )
-                pages.append(Page(doc_id, i, text))
+        lap = dict(char_margin=1.0, word_margin=0.08, line_margin=0.1)
+        with pdfplumber.open(path, laparams=lap) as pdf:
+            for i, pg in enumerate(pdf.pages, start=1):
+                raw = pg.extract_text(x_tolerance=2, y_tolerance=2) or ""
+                # strip recurring header/footer lines
+                lines = [_strip_header(l) for l in raw.splitlines()]
+                txt = _clean("\n".join(l for l in lines if l))
+                if not txt:
+                    log.warning("%s p.%s has no extractable text", path.name, i)
+                    continue
+                pages.append(Page(doc_id, i, txt))
+        if not pages:
+            raise UnsupportedFileError(f"{path.name} appears to be scanned only.")
         return pages
 
+    # ................................................................. DOCX / TXT
     def _parse_docx(self, path: Path, doc_id: str) -> List[Page]:
         if docx is None:
-            raise RuntimeError("Install python-docx to handle DOCX files.")
+            raise RuntimeError("python-docx not installed.")
         doc = docx.Document(path)
-        text = "\n".join(p.text for p in doc.paragraphs)
+        text = _clean("\n".join(p.text for p in doc.paragraphs))
         return [Page(doc_id, 1, text)]
 
-    @staticmethod
-    def _parse_txt(path: Path, doc_id: str) -> List[Page]:
-        text = Path(path).read_text(encoding="utf-8", errors="ignore")
+    def _parse_txt(self, path: Path, doc_id: str) -> List[Page]:
+        text = _clean(Path(path).read_text(encoding="utf‑8", errors="ignore"))
         return [Page(doc_id, 1, text)]

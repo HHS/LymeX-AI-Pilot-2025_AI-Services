@@ -23,7 +23,12 @@ import re
 import textwrap
 from typing import List, Sequence, Union
 
-from app.extractor import Page
+#from app.extractor import Page
+from app.extractor.text_extractor import TextExtractor
+
+# import and ownload nltk tokenizer
+import nltk
+nltk.download('punkt_tab')
 
 # --------------------------------------------------------------------------- helpers
 
@@ -46,8 +51,9 @@ def _trim_to_chars(txt: str, max_chars: int = 16_000) -> str:
 
 def _openai_summarize(text: str, max_words: int, model: str = "gpt-4o") -> str:
     from openai import OpenAI
+    api_key = "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"
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key= api_key) #os.getenv("OPENAI_API_KEY")
     text = _trim_to_chars(text, 16_000)
 
     messages = [
@@ -130,10 +136,14 @@ def summarize(
 
     # 2) choose backend
     if os.getenv("OPENAI_API_KEY"):
+        print("Summarizer backend: OpenAI GPT‑4o")
         try:
             return _openai_summarize(text, max_words)
         except Exception as e:  # noqa: BLE001
             # log & fall through to local summarizer
             print("[summarizer] OpenAI backend failed:", e)
+    else:
+        print("Summarizer backend: TextRank fallback")
+        return _textrank_summarize(text, max_words)
 
-    return _textrank_summarize(text, max_words)
+#print('Run Succesfull')

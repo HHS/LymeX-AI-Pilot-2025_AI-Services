@@ -1,0 +1,20 @@
+# --- Core document processing ---
+pdfplumber==0.11.6           # tuned char/word margins require ≥0.11
+PyYAML==6.0.2                # load questionnaire.yaml & templates
+
+# --- Embeddings & similarity ---
+sentence-transformers==2.7.0 # pulls torch, transformers, etc.
+spacy==3.8.7                 # for embedding sentences uing mini llm 
+rapidfuzz==3.13.0            # fuzzy matcher in QA/Template checker
+
+# --- Summariser ---
+openai                       # GPT-4o path
+sumy==0.11.0                 # local TextRank fallback
+nltk==3.9.1                  # Sumy’s tokenizer; run `python -m nltk.downloader punkt`
+
+# --- Database / vector store (if you enable pgvector) ---
+# psycopg2-binary>=2.9
+
+# --- Testing / linting (dev extras) ---
+# pytest>=7.4
+# coverage>=7.4

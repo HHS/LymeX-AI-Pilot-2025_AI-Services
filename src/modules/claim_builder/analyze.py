@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
+from fastapi import HTTPException
+from loguru import logger
+from src.modules.claim_builder.model import AnalyzeClaimBuilderProgress, ClaimBuilder
+from src.infrastructure.redis import redis_client
 from src.modules.claim_builder.schema import (
     IFU,
-    ClaimBuilder,
     Compliance,
     ComplianceStatus,
     Draft,
@@ -12,9 +15,75 @@ from src.modules.claim_builder.schema import (
     RiskIndicator,
     RiskIndicatorSeverity,
 )
+from src.modules.product_profile.storage import get_product_profile_documents
 
 
-async def analyze_claim_builder(product_id: str) -> ClaimBuilder:
+class AnalyzeProgress:
+    initialized = False
+    progress: AnalyzeClaimBuilderProgress
+
+    async def initialize(self, product_id: str, total_files: int):
+        existing_progress = await AnalyzeClaimBuilderProgress.find_one(
+            AnalyzeClaimBuilderProgress.product_id == product_id,
+        )
+        if existing_progress:
+            self.progress = existing_progress
+            self.progress.product_id = product_id
+            self.progress.total_files = total_files
+            self.progress.processed_files = 0
+            self.progress.updated_at = datetime.now(timezone.utc)
+        else:
+            self.progress = AnalyzeClaimBuilderProgress(
+                product_id=product_id,
+                total_files=total_files,
+                processed_files=0,
+                updated_at=datetime.now(timezone.utc),
+            )
+        await self.progress.save()
+        self.initialized = True
+        logger.info(
+            f"Initialized progress for product {product_id} with total files {total_files}"
+        )
+
+    async def increase(self, count: int = 1):
+        if not self.initialized:
+            raise HTTPException(
+                status_code=500,
+                detail="Progress not initialized. Call initialize() first.",
+            )
+        self.progress.processed_files += count
+        self.progress.updated_at = datetime.now(timezone.utc)
+        await self.progress.save()
+
+
+async def analyze_claim_builder(product_id: str) -> None:
+    lock = redis_client.lock(
+        f"NOIS2:Background:AnalyzeClaimBuilder:AnalyzeLock:{product_id}",
+        timeout=100,
+    )
+    lock_acquired = await lock.acquire(blocking=False)
+    if not lock_acquired:
+        logger.info(
+            f"Task is already running for product {product_id}. Skipping analysis."
+        )
+        return
+
+    product_profile_documents = await get_product_profile_documents(product_id)
+    number_of_documents = len(product_profile_documents)
+
+    progress = AnalyzeProgress()
+    await progress.initialize(product_id, number_of_documents)
+
+    for i, document in enumerate(product_profile_documents):
+        await progress.increase()
+        logger.info(
+            f"Analyzed product profile document {i + 1}/{number_of_documents} for product: {product_id}"
+        )
+    logger.info("Starting AI generation of product profile...")
+    logger.info(f"Finished analyzing product profile for product: {product_id}")
+    await ClaimBuilder.find(
+        ClaimBuilder.product_id == product_id,
+    ).delete_many()
     claim_builder = ClaimBuilder(
         product_id=product_id,
         draft=[
@@ -187,4 +256,12 @@ async def analyze_claim_builder(product_id: str) -> ClaimBuilder:
         ],
         user_acceptance=False,
     )
-    return claim_builder
+    await ClaimBuilder.find(
+        ClaimBuilder.product_id == product_id,
+    ).delete_many()
+    await claim_builder.save()
+    logger.info(
+        f"Analyzed product profile for product: {product_id}, including {number_of_documents} documents."
+    )
+    await lock.release()
+    logger.info(f"Released lock for product {product_id}")

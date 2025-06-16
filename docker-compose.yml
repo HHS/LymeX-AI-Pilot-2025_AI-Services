@@ -1,7 +1,15 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
+    container_name: nois2_192_ai_service
     ports:
       - "19003:8000"
+    networks:
+      - nois2_network
+    env_file:
+      - .env.prod
+
+
+networks:
+  nois2_network:
+    external: true

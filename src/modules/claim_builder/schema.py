@@ -90,25 +90,3 @@ class Draft(BaseModel):
     reject_message: str | None = Field(
         None, description="Message provided by the user if the draft is rejected"
     )
-
-
-class ClaimBuilder(BaseModel):
-    product_id: str = Field(..., description="ID of the product")
-    draft: list[Draft] = Field(..., description="Draft content for the claim builder")
-    key_phrases: list[str] = Field(
-        ..., description="List of key phrases used in the claim"
-    )
-    ifu: list[IFU] = Field(..., description="Instructions for Use (IFU) content")
-    compliance: list[Compliance] = Field(..., description="List of compliance checks")
-    missing_elements: list[MissingElement] = Field(
-        ..., description="List of missing elements in the claim"
-    )
-    risk_indicators: list[RiskIndicator] = Field(
-        ..., description="List of risk indicators associated with the claim"
-    )
-    phrase_conflicts: list[PhraseConflict] = Field(
-        ..., description="List of phrase conflicts identified in the claim"
-    )
-    user_acceptance: bool = Field(
-        ..., description="Indicates if the user has accepted the claim builder"
-    )

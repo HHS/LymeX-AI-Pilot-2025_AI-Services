@@ -1,7 +1,20 @@
-from src.modules.clinical_trial.schema import ClinicalTrial, ClinicalTrialStatus
+from loguru import logger
+from src.infrastructure.redis import redis_client
+from src.modules.clinical_trial.model import ClinicalTrial
+from src.modules.clinical_trial.schema import ClinicalTrialStatus
 
 
 async def analyze_clinical_trial(product_id) -> list[ClinicalTrial]:
+    lock = redis_client.lock(
+        f"NOIS2:Background:AnalyzeClinicalTrial:AnalyzeLock:{product_id}",
+        timeout=100,
+    )
+    lock_acquired = await lock.acquire(blocking=False)
+    if not lock_acquired:
+        logger.info(
+            f"Lock already acquired for clinical trial {product_id}. Skipping analysis."
+        )
+        return
     clinical_trials: list[ClinicalTrial] = []
     clinical_trial = ClinicalTrial(
         product_id=product_id,
@@ -38,4 +51,9 @@ async def analyze_clinical_trial(product_id) -> list[ClinicalTrial]:
         marked=True,
     )
     clinical_trials.append(clinical_trial)
-    return clinical_trials
+    await ClinicalTrial.find(ClinicalTrial.product_id == str(product_id)).delete_many()
+    await ClinicalTrial.insert_many(clinical_trials)
+
+    logger.info(f"Clinical trial analysis completed for product_id: {product_id}")
+    await lock.release()
+    logger.info(f"Released lock for clinical trial {product_id}.")

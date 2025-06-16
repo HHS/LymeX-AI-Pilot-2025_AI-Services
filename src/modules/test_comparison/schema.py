@@ -24,11 +24,3 @@ class IdentifiedGapAndSuggestedAdjustment(BaseModel):
         None,
         description="Indicates if the identified gap and suggested adjustment is accepted, false is rejected, and null is not yet decided",
     )
-
-
-class TestComparison(BaseModel):
-    product_id: str
-    comparison_name: str
-    requirements: list[TestInfo]
-    comparator: list[TestInfo]
-    identified_gaps_and_suggested_adjustments: list[IdentifiedGapAndSuggestedAdjustment]

@@ -1,21 +1,27 @@
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from loguru import logger
 
 
 class Environment(BaseSettings):
-    postgres_host: str = Field(..., env="POSTGRES_HOST")
-    postgres_port: int = Field(..., env="POSTGRES_PORT")
-    postgres_user: str = Field(..., env="POSTGRES_USER")
-    postgres_password: str = Field(..., env="POSTGRES_PASSWORD")
-    postgres_db: str = Field(..., env="POSTGRES_DB")
+    mongo_uri: str = Field(...)
+    mongo_db: str = Field(...)
 
-    gemini_api_key: str = Field(..., env="GEMINI_API_KEY")
+    redis_host: str
+    redis_port: str = Field(6379)
+    redis_db: str = Field(0)
+
+    minio_internal_endpoint: str
+    minio_root_user: str
+    minio_root_password: str
+    minio_bucket: str
+
+    openai_api_key: str = Field(..., env="OPENAI_API_KEY")
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 environment = Environment()
 
 print("Environment variables loaded successfully.")
 logger.info("Environment variables loaded successfully.")
-print(f"Base URL: {environment.base_url}")
-print(f"Refresh token: {environment.refresh_token}")

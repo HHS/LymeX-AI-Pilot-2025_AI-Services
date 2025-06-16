@@ -1,11 +1,23 @@
+from loguru import logger
+from src.modules.competitive_analysis.analyze import RegulatoryPathway
 from src.modules.regulatory_pathway.schema import (
     AlternativePathway,
-    RegulatoryPathway,
     RegulatoryPathwayJustification,
 )
+from src.infrastructure.redis import redis_client
 
 
-async def analyze_regulatory_pathway(product_id: str) -> RegulatoryPathway:
+async def analyze_regulatory_pathway(product_id: str) -> None:
+    lock = redis_client.lock(
+        f"NOIS2:Background:AnalyzeRegulatoryPathway:AnalyzeLock:{product_id}",
+        timeout=100,
+    )
+    lock_acquired = await lock.acquire(blocking=False)
+    if not lock_acquired:
+        logger.info(
+            f"Lock already acquired for test comparison {product_id}. Skipping analysis."
+        )
+        return
     regulatory_pathway = RegulatoryPathway(
         product_id=product_id,
         recommended_pathway="510(k)",
@@ -37,4 +49,11 @@ async def analyze_regulatory_pathway(product_id: str) -> RegulatoryPathway:
             "https://example.com/supporting_document_2.pdf",
         ],
     )
-    return regulatory_pathway
+    await RegulatoryPathway.find(
+        RegulatoryPathway.product_id == product_id,
+    ).delete_many()
+    await regulatory_pathway.save()
+
+    logger.info(f"Regulatory pathway analysis completed for product_id: {product_id}")
+    await lock.release()
+    logger.info(f"Released lock for regulatory pathway {product_id}.")

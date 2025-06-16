@@ -1,5 +1,11 @@
+openai
 fastapi[standard]
 loguru
-psycopg[binary]
 pydantic_settings
-SQLAlchemy
+beanie
+pymongo
+redis[hiredis]
+minio
+fastavro
+httpx
+tenacity

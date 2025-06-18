@@ -27,3 +27,14 @@ class ProductProfileDocumentResponse(BaseModel):
     )
     author: str = Field(..., description="Author of the document")
     size: int = Field(..., description="Size of the document in bytes")
+
+# Purely for OpenAI function calling (fields from YAML)
+class ProductProfileFunctionSchema(BaseModel):
+    device_type: str
+    disease_condition: str
+    patient_population: str
+    use_environment: str
+    combination_use: str
+    life_supporting: str
+    specimen_type: str
+    special_attributes: str

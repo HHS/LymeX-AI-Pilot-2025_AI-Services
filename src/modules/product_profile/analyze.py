@@ -3,6 +3,9 @@ from datetime import datetime, timezone
 from io import BytesIO
 from uuid import uuid4
 
+import yaml
+import os
+
 import httpx
 from fastapi import HTTPException
 from loguru import logger
@@ -13,6 +16,12 @@ from src.infrastructure.redis import redis_client
 from src.modules.product_profile.model import ProductProfile, AnalyzeProductProfileProgress
 from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.parse_openai_json import parse_openai_json
+
+def load_questionnaire_text():
+    path = os.path.join("src", "resources", "device_description_questionnaire.yaml")
+    with open(path, "r") as f:
+        items = yaml.safe_load(f)
+    return "\n".join(f"{item['id']}: {item['question']}" for item in items)
 
 class AnalyzeProgress:
     def __init__(self):
@@ -87,12 +96,19 @@ async def analyze_product_profile(product_id: str) -> None:
             await progress.increment()
             logger.info(f"Uploaded {doc.file_name} as {upload_id}")
 
+        # load product profile questionaire 
+        questionnaire_text = load_questionnaire_text()
+        
         # Build schema for function tool
         function_schema = ProductProfile.model_json_schema(by_alias=True)
 
         # Create an assistant with file_search and function tool
         assistant = client.beta.assistants.create(
-            instructions="You are an FDA expert. Use provided PDF files to extract a complete product profile.",
+            #instructions="You are an FDA expert. Use provided PDF files to extract a complete product profile.",
+            instructions=(
+                "You are an FDA expert. Use provided PDF files to extract a complete product profile. "
+                "Return only a valid JSON dictionary matching the function parameters. Do not include any explanations or bullet points."
+            ),
             model="gpt-4.1",
             tools=[
                 {"type": "file_search"},
@@ -107,9 +123,17 @@ async def analyze_product_profile(product_id: str) -> None:
         # Start a thread and send user question
         thread = client.beta.threads.create()
         QUESTION = (
+            "Please extract a complete product profile using the uploaded FDA PDF documents. "
+            "Additionally, answer the following structured FDA product description questions. "
+            "If an answer is not found, return the value as 'not available'.\n\n"
+            f"{questionnaire_text}"
+        )
+
+        """QUESTION = (
             "Please read all uploaded PDF documents and return a JSON object matching the ProductProfile schema. "
             "Only include fields present in schema."
-        )
+        )"""
+        
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",

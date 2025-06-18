@@ -28,6 +28,16 @@ class ProductProfile(Document):
     instructions: list[str]
     type_of_use: str
 
+    # YAML-derived fields
+    device_type: str
+    disease_condition: str
+    patient_population: str
+    use_environment: str
+    combination_use: str
+    life_supporting: str
+    specimen_type: str
+    special_attributes: str
+
     class Settings:
         name = "product_profile"
 

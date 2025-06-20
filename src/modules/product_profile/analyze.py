@@ -124,6 +124,9 @@ async def analyze_product_profile(product_id: str) -> None:
         thread = client.beta.threads.create()
         QUESTION = (
             "Please extract a complete product profile using the uploaded FDA PDF documents. "
+            "In particular, determine the FDA regulatory pathway: choose from '510(k)', 'De Novo', or 'Premarket Approval (PMA)'. "
+            "Do not confuse this with regulatory classification (Class I, II, III). "
+            "If the regulatory pathway is not stated, infer the most appropriate one using your knowledge of FDA approval processes, but return 'not available' only if there is truly insufficient information for a reasonable inference. "
             "Additionally, answer the following structured FDA product description questions. "
             "If an answer is not found, return the value as 'not available'.\n\n"
             f"{questionnaire_text}"

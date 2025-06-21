@@ -1,6 +1,7 @@
 from datetime import datetime
+
 from beanie import Document, PydanticObjectId
-from pydantic import Field
+
 from src.modules.product_profile.schema import (
     Feature,
     Performance,

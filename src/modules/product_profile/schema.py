@@ -7,6 +7,21 @@ class RegulatoryClassification(BaseModel):
     classification: str
 
 
+class DeviceCharacteristics(BaseModel):
+    device_description: str
+    principle_of_operation: str
+    interpretation_of_results: str
+
+
+class PerformanceCharacteristics(BaseModel):
+    analytical_sensitivity: str
+    analytical_specificity: str
+    precision_reproducibility: str
+    clinical_performance: str
+    performance_summary: str
+    performance_references: list[str]
+
+
 class Feature(BaseModel):
     name: str
     description: str

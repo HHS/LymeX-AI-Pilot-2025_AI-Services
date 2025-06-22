@@ -5,6 +5,8 @@ from src.modules.product_profile.schema import (
     Feature,
     Performance,
     RegulatoryClassification,
+    DeviceCharacteristics,
+    PerformanceCharacteristics,
 )
 
 
@@ -14,10 +16,13 @@ class ProductProfile(Document):
     description: str
     regulatory_pathway: str
     regulatory_classifications: list[RegulatoryClassification]
-    device_description: str
+    device_characteristics: list[DeviceCharacteristics]
+    performance_characteristics: list[PerformanceCharacteristics]
     features: list[Feature]
     claims: list[str]
     conflict_alerts: list[str]
+    test_principle: str
+    comparative_claims: list[str]
     fda_approved: bool | None
     ce_marked: bool | None
     device_ifu_description: str

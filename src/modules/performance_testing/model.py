@@ -7,6 +7,8 @@ from src.modules.performance_testing.schema import (
     PerformanceTestingRiskLevel,
     PerformanceTestingReference,
     PerformanceTestingAssociatedStandard,
+    AnalyticalPerformance,
+    ClinicalPerformance
 )
 
 
@@ -14,6 +16,12 @@ class PerformanceTesting(Document):
     product_id: str
     test_name: str
     test_description: str
+    # Detailed extracted data
+    analytical: AnalyticalPerformance
+    clinical: ClinicalPerformance
+    glp_protocol_compliance: str | None = None
+    glp_report_compliance: str | None = None
+    performance_summary: str
     status: PerformanceTestingStatus
     risk_level: PerformanceTestingRiskLevel
     ai_confident: int | None = None

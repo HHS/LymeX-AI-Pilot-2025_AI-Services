@@ -1,6 +1,7 @@
-from typing import Optional, List
+from datetime import datetime
+from typing import Optional, List                 
 from beanie import Document, PydanticObjectId
-
+from pydantic import Field
 from src.modules.product_profile.schema import (
     Feature,
     Performance,

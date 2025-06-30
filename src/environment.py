@@ -16,6 +16,9 @@ class Environment(BaseSettings):
     minio_root_password: str
     minio_bucket: str
 
+    qdrant_url: str = Field("http://localhost")
+    qdrant_port: int = Field(6333)
+
     openai_api_key: str = Field(..., env="OPENAI_API_KEY")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

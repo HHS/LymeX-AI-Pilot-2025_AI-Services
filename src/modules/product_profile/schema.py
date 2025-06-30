@@ -27,6 +27,9 @@ class DeviceCharacteristics(BaseModel):
     storage_conditions: Optional[str] = None    # e.g. “2-8 °C”
     shelf_life: Optional[str] = None            # e.g. “18 months”
     sterility_status: Optional[str] = None      # Sterile / Non-sterile / N/A
+    software_present: Optional[str] = None
+    single_use_or_reprocessed_single_use_device: Optional[str] = None
+    animal_derived_materials: Optional[str] = None
 
 
 class PerformanceCharacteristics(BaseModel):

@@ -15,7 +15,7 @@ class ProductProfile(Document):
     product_id: str
     product_trade_name: str                       
     model_number: Optional[str] = None            
-    reference_number: str
+    #reference_number: str
     description: str
     generic_name: Optional[str] = None            
     
@@ -31,7 +31,7 @@ class ProductProfile(Document):
     conflict_alerts: list[str]
     #test_principle: str
     comparative_claims: list[str]
-    fda_approved: bool | None
+    fda_cleared: bool | None
     #ce_marked: bool | None
 
     #device_ifu_description: str
@@ -48,7 +48,7 @@ class ProductProfile(Document):
     #confidence_score: float
     sources: list[str]
     #performance: Performance
-    price: int | None
+    #price: int | None
     instructions: list[str]
     type_of_use: str
 

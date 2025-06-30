@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------------------
 
 - id: device_type
-  question: "This device could be described as (instrument, assay, or both):"
+  question: "This device could be described as (instrument, assay, or both). Do mention the type of instrument, assay, or both if menaitoned in the document."
   key_phrases:
     # assay
     - "assay"
@@ -21,7 +21,7 @@
     - "test system"
 
 - id: disease_condition
-  question: "What disease(s) or conditions does the product treat or diagnose, and what is their incidence/prevalence?"
+  question: "What disease(s) or conditions does the product treat or diagnose?" #, and what is their incidence/prevalence?
   key_phrases:
     - "Lyme disease"
     - "Borrelia burgdorferi"

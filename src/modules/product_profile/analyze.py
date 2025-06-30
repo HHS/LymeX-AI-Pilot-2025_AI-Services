@@ -136,6 +136,8 @@ async def analyze_product_profile(product_id: str) -> None:
             "• Capture **FDA product code** and **21 CFR regulation number**.\n"
             "• Capture storage conditions, shelf-life, and sterility status if present.\n"
             "• List any warnings, limitations, or contraindications that appear in labeling.\n"
+            "• Any software present, single-use or reprocessed single use device "
+            "are there any animal-derived materials in the product \n"
             "• Provide a **step-by-step instructions-for-use** list.\n"
             "If an answer is not found, return the field value as 'not available'.\n\n"
             f"{questionnaire_text}"

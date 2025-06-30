@@ -27,6 +27,9 @@ class DeviceCharacteristics(BaseModel):
     storage_conditions: Optional[str] = None    # e.g. “2-8 °C”
     shelf_life: Optional[str] = None            # e.g. “18 months”
     sterility_status: Optional[str] = None      # Sterile / Non-sterile / N/A
+    software_present: Optional[str] = None
+    single_use_or_reprocessed_single_use_device: Optional[str] = None
+    animal_derived_materials: Optional[str] = None
 
 
 class PerformanceCharacteristics(BaseModel):
@@ -50,12 +53,14 @@ class Performance(BaseModel):
 
 
 class ProductProfileDocumentResponse(BaseModel):
-    document_name: str = Field(..., description="Title of the product profile document.")
-    file_name: str = Field(..., description="File name of the document, including extension.")
-    url: str = Field(..., description="Direct link to download or view the document.")
-    uploaded_at: str = Field(..., description="Timestamp indicating when the document was uploaded.")
-    author: str = Field(..., description="Name of the person or entity that authored the document.")
-    size: int = Field(..., description="Document size in bytes.")
+    document_name: str = Field(..., description="Name of the product profile document")
+    file_name: str = Field(..., description="Name of the document")
+    url: str = Field(..., description="URL to access the document")
+    uploaded_at: str = Field(
+        ..., description="Date and time when the document was uploaded"
+    )
+    author: str = Field(..., description="Author of the document")
+    size: int = Field(..., description="Size of the document in bytes")
 
 # Purely for OpenAI function calling (fields from YAML)
 class ProductProfileFunctionSchema(BaseModel):

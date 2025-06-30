@@ -1,26 +1,27 @@
 from beanie import init_beanie
-from motor.motor_asyncio import AsyncIOMotorClient
 from loguru import logger
-from src.modules.clinical_trial.model import ClinicalTrial
-from src.modules.performance_testing.model import PerformanceTesting
-from src.modules.product.model import Product
-from src.modules.regulatory_pathway.model import RegulatoryPathway
-from src.modules.test_comparison.model import (
-    TestComparison,
-)
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from src.environment import environment
 from src.modules.claim_builder.model import (
     AnalyzeClaimBuilderProgress,
     ClaimBuilder,
 )
+from src.modules.clinical_trial.model import ClinicalTrial
+from src.modules.competitive_analysis.model import (
+    AnalyzeCompetitiveAnalysisProgress,
+    CompetitiveAnalysis,
+)
+from src.modules.performance_testing.model import PerformanceTesting
+from src.modules.product.model import Product
 from src.modules.product_profile.model import (
     AnalyzeProductProfileProgress,
     ProductProfile,
 )
-from src.modules.competitive_analysis.model import (
-    CompetitiveAnalysis,
-    AnalyzeCompetitiveAnalysisProgress,
+from src.modules.regulatory_pathway.model import RegulatoryPathway
+from src.modules.test_comparison.model import (
+    TestComparison,
 )
-from src.environment import environment
 
 client = AsyncIOMotorClient(environment.mongo_uri)
 db = client[environment.mongo_db]

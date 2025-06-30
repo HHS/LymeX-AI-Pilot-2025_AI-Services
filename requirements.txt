@@ -9,3 +9,4 @@ minio
 fastavro
 httpx
 tenacity
+qdrant-client

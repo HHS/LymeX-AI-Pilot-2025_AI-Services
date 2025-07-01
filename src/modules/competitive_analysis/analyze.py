@@ -1,19 +1,25 @@
-from datetime import datetime, timezone
+import asyncio
+import json
+from datetime import datetime, timedelta, timezone
 from enum import Enum
-from random import choice, randint, sample
-from src.infrastructure.redis import redis_client
+from pathlib import Path
+
+import httpx
 from fastapi import HTTPException
 from loguru import logger
+from openai import OpenAIError
+
+from src.infrastructure.minio import get_object
+from src.infrastructure.openai import get_openai_client
+from src.infrastructure.qdrant import search_similar
+from src.infrastructure.redis import redis_client
 from src.modules.competitive_analysis.model import (
     AnalyzeCompetitiveAnalysisProgress,
     CompetitiveAnalysis,
 )
-from src.modules.competitive_analysis.schema import (
-    CompetitiveAnalysisCompareSummary,
-    CompetitiveDeviceAnalysisKeyDifferenceResponse,
-)
-from src.modules.competitive_analysis.storage import get_competitive_analysis_documents
-from src.modules.product_profile.schema import Performance
+from src.modules.index_system_data.summarize_files import summarize_files
+from src.modules.product_profile.schema import ProductProfileDocumentResponse
+from src.modules.product_profile.storage import get_product_profile_documents
 
 NUMBER_OF_MANUAL_ANALYSIS = 3
 TOTAL_ANALYSIS = 5
@@ -63,214 +69,143 @@ class AnalyzeProgress:
         await self.progress.save()
 
 
+async def create_competitive_analysis(
+    product_profile_docs: list[ProductProfileDocumentResponse],
+    competitor_document_path: Path,
+) -> CompetitiveAnalysis:
+    client = get_openai_client()
+    uploaded_ids: list[str] = []
+
+    # — your original upload loop for product profiles —
+    for doc in product_profile_docs:
+        path = Path(f"/tmp/product_profile/{doc.file_name}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        resp = httpx.get(doc.url)
+        resp.raise_for_status()
+        path.write_bytes(resp.content)
+
+        with path.open("rb") as f:
+            fo = client.files.create(file=f, purpose="assistants")
+        uploaded_ids.append(fo.id)
+
+    # — your original download & upload for competitor doc —
+    system_data_folder = "system_data"
+    key = f"{system_data_folder}/{competitor_document_path.name}"
+    raw_data = await get_object(key)
+    competitor_document_path.parent.mkdir(parents=True, exist_ok=True)
+    competitor_document_path.write_bytes(raw_data)
+
+    with competitor_document_path.open("rb") as f:
+        cfo = client.files.create(file=f, purpose="assistants")
+    uploaded_ids.append(cfo.id)
+
+    # — capture the filenames so we know which is which —
+    product_profile_file_names = [
+        doc.file_name for doc in product_profile_docs if doc.file_name
+    ]
+    competitor_file_name = competitor_document_path.name
+
+    # — build the function schema from your Pydantic model —
+    func_spec = {
+        "name": "create_competitive_analysis",
+        "description": "Produce a JSON object matching the CompetitiveAnalysis schema",
+        "parameters": CompetitiveAnalysis.schema(),  # Pydantic → JSON Schema
+    }
+
+    # — your full instruction string, verbatim —
+    instructions = (
+        "You are an expert in competitive analysis for medical devices. "
+        "You will analyze the provided product profile documents and competitor documents to create a comprehensive competitive analysis. "
+        "Your analysis should include the following fields: product_name, reference_number, regulatory_pathway, fda_approved, ce_marked, "
+        "is_ai_generated, confidence_score, sources, your_product_summary, competitor_summary. "
+        "You will receive a list of product profile documents and a competitor document. "
+        "The product profile documents will contain information about the product, including its name, reference number, regulatory pathway, "
+        "FDA approval status, CE marking status, and other relevant information. "
+        "The competitor document will contain information about a competitor's product. "
+        "You will analyze the product profile documents and the competitor document to create a competitive analysis. "
+        "You will also provide a summary of the product profile and the competitor document. "
+        "The competitive analysis should be returned in the CompetitiveAnalysis model format. "
+        "If you cannot determine a field, set it to null."
+    )
+
+    # — call the chat completion with function-calling, including your instructions —
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": instructions},
+            {
+                "role": "user",
+                "content": json.dumps({
+                    "product_profiles": [
+                        {"file_name": name, "file_id": fid}
+                        for name, fid in zip(
+                            product_profile_file_names, uploaded_ids[:-1]
+                        )
+                    ],
+                    "competitor": {
+                        "file_name": competitor_file_name,
+                        "file_id": uploaded_ids[-1],
+                    },
+                }),
+            },
+        ],
+        functions=[func_spec],
+        function_call={"name": "create_competitive_analysis"},
+        temperature=0,
+    )
+
+    # — parse the returned JSON into your model —
+    args_json = completion.choices[0].message.function_call.arguments
+    analysis = CompetitiveAnalysis.model_validate_json(args_json)
+    return analysis
+
+
 async def analyze_competitive_analysis(
     product_id: str,
 ) -> None:
-    lock = redis_client.lock(
-        f"NOIS2:Background:AnalyzeCompetitiveAnalysis:AnalyzeLock:{product_id}",
-        timeout=100,
-    )
-    lock_acquired = await lock.acquire(blocking=False)
-    if not lock_acquired:
-        logger.info(
-            f"Task is already running for product {product_id}. Skipping analysis."
-        )
-        return
+    # lock = redis_client.lock(
+    #     f"NOIS2:Background:AnalyzeCompetitiveAnalysis:AnalyzeLock:{product_id}",
+    #     timeout=100,
+    # )
+    # lock_acquired = await lock.acquire(blocking=False)
+    # if not lock_acquired:
+    #     logger.info(
+    #         f"Task is already running for product {product_id}. Skipping analysis."
+    #     )
+    #     return
 
-    documents = await get_competitive_analysis_documents(product_id)
-    # Randomly pick documents to analyze
-    number_of_manual_analysis = min(
-        NUMBER_OF_MANUAL_ANALYSIS,
-        len(documents),
+    paths: list[Path] = []
+    docs = await get_product_profile_documents(product_id)
+    for doc in docs:
+        response = httpx.get(doc.url)
+        temp_path = Path(f"/tmp/product_profile/{doc.file_name}")
+        temp_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(response.content)
+        paths.append(temp_path)
+    summary = await summarize_files(paths)
+
+    similar_docs = search_similar(
+        summary,
+        2,
     )
-    documents = sample(documents, number_of_manual_analysis)
-    number_of_ai_generation = TOTAL_ANALYSIS - number_of_manual_analysis
-    competitive_analysis_list: list[CompetitiveAnalysis] = []
-    progress = AnalyzeProgress()
-    await progress.initialize(
-        product_id=product_id,
-        total_files=TOTAL_ANALYSIS,
-    )
-    logger.info("Starting analysis of competitive analysis documents...")
-    for i, document in enumerate(documents):
-        product_name = f"Test Product {document.document_name}"
-        competitive_analysis = CompetitiveAnalysis(
-            reference_product_id=product_id,
-            product_name=product_name,
-            category=document.category,
-            regulatory_pathway=document.category,
-            clinical_study="clinical_study",
-            fda_approved=True,
-            ce_marked=True,
-            device_ifu_description="Device IFU description",
-            key_differences=[
-                CompetitiveDeviceAnalysisKeyDifferenceResponse(
-                    title="Patient Population",
-                    content="Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                    icon="https://example.com/icon1.png",
-                ),
-                CompetitiveDeviceAnalysisKeyDifferenceResponse(
-                    title="Usage Environment",
-                    content="Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                    icon="https://example.com/icon2.png",
-                ),
-                CompetitiveDeviceAnalysisKeyDifferenceResponse(
-                    title="Certifications",
-                    content="Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                    icon="https://example.com/icon3.png",
-                ),
-            ],
-            recommendations=[
-                "Recommendation 1",
-                "Recommendation 2",
-                "Recommendation 3",
-            ],
-            is_ai_generated=False,
-            features=[
-                {
-                    "name": "Feature 1",
-                    "description": "Description of feature 1",
-                },
-                {
-                    "name": "Feature 2",
-                    "description": "Description of feature 2",
-                },
-                {
-                    "name": "Feature 3",
-                    "description": "Description of feature 3",
-                },
-            ],
-            claims=[
-                "Claim 1",
-                "Claim 2",
-                "Claim 3",
-            ],
-            reference_number=f"Reference Number {randint(1, 1000000)}",
-            confidence_score=randint(1, 100) / 100,
-            sources=[document.url],
-            performance=Performance(
-                speed=randint(50, 100),
-                reliability=randint(50, 100),
-            ),
-            price=randint(1000, 5000),
-            your_product_summary=CompetitiveAnalysisCompareSummary(
-                title="Your Product Summary",
-                summary="This is a summary of your product's competitive analysis.",
-                icon="https://example.com/your-product-icon.png",
-            ),
-            competitor_summary=CompetitiveAnalysisCompareSummary(
-                title="Competitor Summary",
-                summary="This is a summary of the competitor's product.",
-                icon="https://example.com/competitor-icon.png",
-            ),
-            instructions=[
-                "Follow the instructions provided in the document.",
-                "Ensure compliance with regulatory standards.",
-                "Review the key differences highlighted in the analysis.",
-            ],
-            type_of_use="prescription",
+    print("+++++++++++++++++++++++")
+    print(similar_docs)
+    similar_docs_file_names = [
+        doc.payload.get("filename", "Unknown") for doc in similar_docs
+    ]
+    similar_docs_file_names = [i for i in similar_docs_file_names if i != "Unknown"]
+    # download competitor documents
+    competitor_documents = [
+        Path(f"/tmp/competitor_documents/{name}") for name in similar_docs_file_names
+    ]
+    for comp_doc in competitor_documents:
+        competitive_analysis = await create_competitive_analysis(
+            product_profile_docs=docs, competitor_document_path=comp_doc
         )
-        competitive_analysis_list.append(competitive_analysis)
-        await progress.increase()
-        logger.info(
-            f"Analyzed competitive analysis document {i + 1}/{number_of_manual_analysis} for product: {product_id}"
-        )
-    logger.info("Starting AI generation of competitive analysis...")
-    for _ in range(number_of_ai_generation):
-        competitive_analysis = CompetitiveAnalysis(
-            reference_product_id=product_id,
-            product_name=f"Test Product {randint(1, 1000000)}",
-            category=choice(list(RegulatoryPathway)),
-            regulatory_pathway=choice(list(RegulatoryPathway)),
-            clinical_study="clinical_study",
-            fda_approved=True,
-            ce_marked=True,
-            device_ifu_description="Device IFU description",
-            key_differences=[
-                CompetitiveDeviceAnalysisKeyDifferenceResponse(
-                    title="Patient Population",
-                    content="Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                    icon="https://example.com/icon1.png",
-                ),
-                CompetitiveDeviceAnalysisKeyDifferenceResponse(
-                    title="Usage Environment",
-                    content="Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                    icon="https://example.com/icon2.png",
-                ),
-                CompetitiveDeviceAnalysisKeyDifferenceResponse(
-                    title="Certifications",
-                    content="Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                    icon="https://example.com/icon3.png",
-                ),
-            ],
-            recommendations=[
-                "Recommendation 1",
-                "Recommendation 2",
-                "Recommendation 3",
-            ],
-            is_ai_generated=True,
-            features=[
-                {
-                    "name": "Feature 1",
-                    "description": "Description of feature 1",
-                },
-                {
-                    "name": "Feature 2",
-                    "description": "Description of feature 2",
-                },
-                {
-                    "name": "Feature 3",
-                    "description": "Description of feature 3",
-                },
-            ],
-            claims=[
-                "Claim 1",
-                "Claim 2",
-                "Claim 3",
-            ],
-            reference_number=f"Reference Number {randint(1, 1000000)}",
-            confidence_score=randint(1, 100) / 100,
-            sources=[
-                "https://example.com/ai-generated-source-1",
-                "https://example.com/ai-generated-source-2",
-                "https://example.com/ai-generated-source-3",
-                "https://example.com/ai-generated-source-4",
-                "https://example.com/ai-generated-source-5",
-            ],
-            performance=Performance(
-                speed=randint(50, 100),
-                reliability=randint(50, 100),
-            ),
-            price=randint(1000, 5000),
-            your_product_summary=CompetitiveAnalysisCompareSummary(
-                title="Your Product Summary",
-                summary="This is a summary of your product's competitive analysis.",
-                icon="https://example.com/your-product-icon.png",
-            ),
-            competitor_summary=CompetitiveAnalysisCompareSummary(
-                title="Competitor Summary",
-                summary="This is a summary of the competitor's product.",
-                icon="https://example.com/competitor-icon.png",
-            ),
-            instructions=[
-                "Follow the instructions provided in the document.",
-                "Ensure compliance with regulatory standards.",
-                "Review the key differences highlighted in the analysis.",
-            ],
-            type_of_use="prescription",
-        )
-        competitive_analysis_list.append(competitive_analysis)
-        await progress.increase()
-        logger.info(
-            f"Generated AI competitive analysis {len(competitive_analysis_list)}/{number_of_ai_generation} for product: {product_id}"
-        )
-    logger.info(f"Finished analyzing competitive analysis for product: {product_id}")
-    await CompetitiveAnalysis.find(
-        CompetitiveAnalysis.reference_product_id == product_id,
-    ).delete_many()
-    await CompetitiveAnalysis.insert_many(competitive_analysis_list)
-    logger.info(
-        f"Analyzed {len(competitive_analysis_list)} competitive analysis for product: {product_id}, including {number_of_manual_analysis} manual analysis and {number_of_ai_generation} AI-generated analysis."
-    )
-    await lock.release()
-    logger.info(f"Released lock for product {product_id}")
+        print("=======================")
+        print(competitive_analysis.model_dump_json(indent=4))
+
+    # await lock.release()
+    # logger.info(f"Released lock for product {product_id}")

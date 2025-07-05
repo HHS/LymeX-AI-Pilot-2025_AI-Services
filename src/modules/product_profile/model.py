@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List                 
+from typing import Optional
 from beanie import Document, PydanticObjectId
 from pydantic import Field
 from src.modules.product_profile.schema import (
@@ -13,42 +13,44 @@ from src.modules.product_profile.schema import (
 
 class ProductProfile(Document):
     product_id: str
-    product_trade_name: str                       
-    model_number: Optional[str] = None            
-    #reference_number: str
+    product_trade_name: str
+    model_number: Optional[str] = None
+    reference_number: str
     description: str
-    generic_name: Optional[str] = None            
-    
-    regulatory_pathway: Optional[str] = None      # now optional if absent
+    generic_name: Optional[str] = None
+
+    regulatory_pathway: Optional[str] = None  # now optional if absent
     regulatory_classifications: list[RegulatoryClassification]
-    #product_code: Optional[str] = None            
-    #regulation_number: Optional[str] = None       
-    
+    product_code: Optional[str] = None
+    regulation_number: Optional[str] = None
+
     device_characteristics: list[DeviceCharacteristics]
     performance_characteristics: list[PerformanceCharacteristics]
-    #features: list[Feature]
+    device_description: str
+    features: list[Feature]
     claims: list[str]
     conflict_alerts: list[str]
-    #test_principle: str
+    test_principle: str
     comparative_claims: list[str]
     fda_cleared: bool | None
-    #ce_marked: bool | None
+    fda_approved: bool | None
+    ce_marked: bool | None
 
-    #device_ifu_description: str
-    instructions_for_use: list[str] = Field(default_factory=list)  
+    device_ifu_description: str
+    instructions_for_use: list[str] = Field(default_factory=list)
 
-    #storage_conditions: Optional[str] = None     
-    #shelf_life: Optional[str] = None             
-    #sterility_status: Optional[str] = None       
+    storage_conditions: Optional[str] = None
+    shelf_life: Optional[str] = None
+    sterility_status: Optional[str] = None
 
-    warnings: list[str] = Field(default_factory=list)              
-    limitations: list[str] = Field(default_factory=list)           
-    contraindications: list[str] = Field(default_factory=list)     
+    warnings: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    contraindications: list[str] = Field(default_factory=list)
 
-    #confidence_score: float
+    confidence_score: float
     sources: list[str]
-    #performance: Performance
-    #price: int | None
+    performance: Performance
+    price: int = 0
     instructions: list[str]
     type_of_use: str
 

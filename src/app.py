@@ -5,6 +5,9 @@ from src.infrastructure.database import init_db
 from src.modules.claim_builder.analyze import analyze_claim_builder
 from src.modules.clinical_trial.analyze import analyze_clinical_trial
 from src.modules.competitive_analysis.analyze import analyze_competitive_analysis
+from src.modules.index_system_data.analyze import (
+    index_system_data,
+)
 from src.modules.performance_testing.analyze import analyze_performance_testing
 from src.modules.product_profile.analyze import analyze_product_profile
 from src.modules.regulatory_pathway.analyze import analyze_regulatory_pathway
@@ -73,3 +76,8 @@ async def analyze_test_comparison_handler(
     product_id: str,
 ) -> None:
     await analyze_test_comparison(product_id)
+
+
+@app.post("/index-system-data")
+async def index_system_data_handler() -> None:
+    await index_system_data()

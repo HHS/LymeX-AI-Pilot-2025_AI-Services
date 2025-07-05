@@ -106,8 +106,14 @@ async def analyze_product_profile(product_id: str) -> None:
         assistant = client.beta.assistants.create(
             #instructions="You are an FDA expert. Use provided PDF files to extract a complete product profile.",
             instructions=(
-                "You are an FDA expert. Use provided PDF files to extract a complete product profile. "
-                "Return only a valid JSON dictionary matching the function parameters. Do not include any explanations or bullet points."
+                "You are an FDA expert. Use the uploaded PDF files to extract a complete "
+                "product profile. Return **only** valid JSON that matches the "
+                "ProductProfile schema exactly (no explanations or bullet points). "
+                "Required fields now include trade name, model number, generic name, "
+                "FDA product code, CFR regulation number, storage conditions, shelf-life, "
+                "sterility status, warnings, limitations, contraindications, and a "    
+                "step-by-step instructions-for-use list. Use the literal string "
+                "'not available' for any field you cannot confidently extract."
             ),
             model="gpt-4.1",
             tools=[
@@ -123,12 +129,17 @@ async def analyze_product_profile(product_id: str) -> None:
         # Start a thread and send user question
         thread = client.beta.threads.create()
         QUESTION = (
-            "Please extract a complete product profile using the uploaded FDA PDF documents. "
-            "In particular, determine the FDA regulatory pathway: choose from '510(k)', 'De Novo', or 'Premarket Approval (PMA)'. "
-            "Do not confuse this with regulatory classification (Class I, II, III). "
-            "If the regulatory pathway is not stated, infer the most appropriate one using your knowledge of FDA approval processes, but return 'not available' only if there is truly insufficient information for a reasonable inference. "
-            "Additionally, answer the following structured FDA product description questions. "
-            "If an answer is not found, return the value as 'not available'.\n\n"
+            "Please extract a complete product profile using all uploaded FDA PDF "
+            "documents. In particular:\n"
+            "• Determine the FDA regulatory pathway ('510(k)', 'De Novo', or 'Premarket Approval (PMA)').\n"
+            "• Capture **trade name, model number, and generic name**.\n"
+            "• Capture **FDA product code** and **21 CFR regulation number**.\n"
+            "• Capture storage conditions, shelf-life, and sterility status if present.\n"
+            "• List any warnings, limitations, or contraindications that appear in labeling.\n"
+            "• Any software present, single-use or reprocessed single use device "
+            "are there any animal-derived materials in the product \n"
+            "• Provide a **step-by-step instructions-for-use** list.\n"
+            "If an answer is not found, return the field value as 'not available'.\n\n"
             f"{questionnaire_text}"
         )
 

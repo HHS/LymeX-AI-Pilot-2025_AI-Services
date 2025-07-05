@@ -1,19 +1,18 @@
 from datetime import datetime
+
 from beanie import Document, PydanticObjectId
 
-from src.modules.product.model import Product
-from src.modules.product_profile.model import ProductProfile
-from src.modules.product_profile.schema import Feature, Performance
 from src.modules.competitive_analysis.schema import (
     AnalyzeCompetitiveAnalysisProgressResponse,
     CompetitiveAnalysisCompareItemResponse,
     CompetitiveAnalysisCompareResponse,
     CompetitiveAnalysisCompareSummary,
     CompetitiveAnalysisResponse,
-    CompetitiveDeviceAnalysisItemResponse,
     CompetitiveDeviceAnalysisKeyDifferenceResponse,
-    CompetitiveDeviceAnalysisResponse,
 )
+from src.modules.product.model import Product
+from src.modules.product_profile.model import ProductProfile
+from src.modules.product_profile.schema import Feature, Performance
 
 
 class CompetitiveAnalysis(Document):

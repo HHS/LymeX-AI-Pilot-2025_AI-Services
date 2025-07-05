@@ -95,8 +95,6 @@ def get_all_documents() -> List[DocumentFilename]:
         with_payload=True,
         with_vectors=False,
     )
-    print("============================")
-    print(result)
     documents: List[DocumentFilename] = [
         {
             "id": str(point.id),

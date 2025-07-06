@@ -1,21 +1,17 @@
+import asyncio
 from datetime import datetime, timezone
+from io import BytesIO
 from fastapi import HTTPException
+import httpx
 from loguru import logger
+from pydantic import BaseModel
+from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
+from src.infrastructure.openai import get_openai_client
 from src.modules.claim_builder.model import AnalyzeClaimBuilderProgress, ClaimBuilder
 from src.infrastructure.redis import redis_client
-from src.modules.claim_builder.schema import (
-    IFU,
-    Compliance,
-    ComplianceStatus,
-    Draft,
-    IFUSource,
-    MissingElement,
-    MissingElementLevel,
-    PhraseConflict,
-    RiskIndicator,
-    RiskIndicatorSeverity,
-)
 from src.modules.product_profile.storage import get_product_profile_documents
+from src.utils.parse_openai_json import parse_openai_json
+from src.utils.prompt import model_to_schema
 
 
 class AnalyzeProgress:
@@ -55,6 +51,36 @@ class AnalyzeProgress:
         self.progress.updated_at = datetime.now(timezone.utc)
         await self.progress.save()
 
+    async def complete(self):
+        if not self.progress:
+            return
+        self.progress.processed_files = self.progress.total_files
+        self.progress.updated_at = datetime.now(timezone.utc)
+        await self.progress.save()
+        logger.info(f"Progress complete for {self.progress.product_id}")
+
+
+def build_claim_builder_instructions(ClaimBuilder: type[BaseModel]) -> str:
+    schema_str = model_to_schema(ClaimBuilder)
+    prompt = f"""
+You are an expert at extracting structured information from regulatory and product documentation for medical devices.
+
+Your task:
+- Read and analyze all uploaded PDF documents.
+- Extract all relevant information and return a JSON object that exactly matches the following ClaimBuilder schema.
+- Only include fields present in the schema, matching their types and structure.
+
+# ClaimBuilder JSON Schema
+
+{schema_str}
+
+# Output
+Return only the final JSON object matching the schema above, ready for deserialization into the ClaimBuilder model.
+
+Strictly output valid JSON.
+"""
+    return prompt.strip()
+
 
 async def analyze_claim_builder(product_id: str) -> None:
     lock = redis_client.lock(
@@ -68,200 +94,127 @@ async def analyze_claim_builder(product_id: str) -> None:
         )
         return
 
-    product_profile_documents = await get_product_profile_documents(product_id)
-    number_of_documents = len(product_profile_documents)
+    docs = await get_product_profile_documents(product_id)
+    number_of_documents = len(docs)
 
     progress = AnalyzeProgress()
-    await progress.initialize(product_id, number_of_documents)
+    await progress.initialize(product_id, 1)
 
-    for i, document in enumerate(product_profile_documents):
-        await progress.increase()
-        logger.info(
-            f"Analyzed product profile document {i + 1}/{number_of_documents} for product: {product_id}"
+    try:
+        client = get_openai_client()
+        file_ids: list[str] = []
+
+        for doc in docs:
+            upload_id = None
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10)
+            ):
+                with attempt:
+                    async with httpx.AsyncClient() as http:
+                        resp = await http.get(doc.url)
+                        resp.raise_for_status()
+                    bio = BytesIO(resp.content)
+                    bio.name = doc.file_name
+                    uploaded = client.files.create(file=bio, purpose="assistants")
+                    upload_id = uploaded.id
+            if not upload_id:
+                logger.error(f"Failed to upload {doc.file_name}")
+                raise HTTPException(502, f"Upload failed for {doc.file_name}")
+            file_ids.append(upload_id)
+            logger.info(f"Uploaded {doc.file_name} as {upload_id}")
+
+        function_schema = ClaimBuilder.model_json_schema(by_alias=True)
+
+        assistant = client.beta.assistants.create(
+            instructions=build_claim_builder_instructions(ClaimBuilder),
+            model="gpt-4.1",
+            tools=[
+                {"type": "file_search"},
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "answer_about_pdf",
+                        "description": "Return a JSON matching ClaimBuilder schema.",
+                        "parameters": function_schema,
+                    },
+                },
+            ],
         )
-    logger.info("Starting AI generation of product profile...")
-    logger.info(f"Finished analyzing product profile for product: {product_id}")
-    await ClaimBuilder.find(
-        ClaimBuilder.product_id == product_id,
-    ).delete_many()
-    claim_builder = ClaimBuilder(
-        product_id=product_id,
-        draft=[
-            Draft(
-                version=0,
-                updated_at=datetime.now(timezone.utc),
-                updated_by="AI",
-                content="This is a draft claim generated by AI for product_id: {}".format(
-                    product_id
-                ),
-                submitted=False,
-                accepted=False,
-            )
-        ],
-        key_phrases=[
-            "High quality material",
-            "Complies with EU regulations",
-        ],
-        ifu=[
-            IFU(
-                phrase="The ",
-            ),
-            IFU(
-                phrase="Product",
-                sources=[
-                    IFUSource(
-                        source="Source 1",
-                        reason="Reason 1",
-                        category="Source Category 1",
-                    ),
-                    IFUSource(
-                        source="Source 2",
-                        reason="Reason 2",
-                        category="Source Category 2",
-                    ),
-                    IFUSource(
-                        source="Source 3",
-                        reason="Reason 3",
-                        category="Source Category 3",
-                    ),
-                ],
-            ),
-            IFU(
-                phrase=" is indicated use in ",
-            ),
-            IFU(
-                phrase="therapeutic area",
-                sources=[
-                    IFUSource(
-                        source="Source 1",
-                        reason="Reason 1",
-                        category="Source Category 1",
-                    ),
-                    IFUSource(
-                        source="Source 2",
-                        reason="Reason 2",
-                        category="Source Category 2",
-                    ),
-                ],
-            ),
-            IFU(
-                phrase=" for the treatment of ",
-            ),
-            IFU(
-                phrase="specific conditions",
-                sources=[
-                    IFUSource(
-                        source="Source 1",
-                        reason="Reason 1",
-                        category="Source Category 1",
-                    ),
-                    IFUSource(
-                        source="Source 2",
-                        reason="Reason 2",
-                        category="Source Category 2",
-                    ),
-                    IFUSource(
-                        source="Source 3",
-                        reason="Reason 3",
-                        category="Source Category 3",
-                    ),
-                ],
-            ),
-            IFU(
-                phrase=" patients who ",
-            ),
-            IFU(
-                phrase="patient population",
-                sources=[
-                    IFUSource(
-                        source="Source 1",
-                        reason="Reason 1",
-                        category="Source Category 1",
-                    ),
-                    IFUSource(
-                        source="Source 2",
-                        reason="Reason 2",
-                        category="Source Category 2",
-                    ),
-                ],
-            ),
-        ],
-        compliance=[
-            Compliance(
-                content="This is OK compliance",
-                status=ComplianceStatus.OK,
-            ),
-            Compliance(
-                content="This is WARNING compliance",
-                status=ComplianceStatus.WARNING,
-            ),
-            Compliance(
-                content="This is CRITICAL compliance",
-                status=ComplianceStatus.CRITICAL,
-            ),
-        ],
-        missing_elements=[
-            MissingElement(
-                id=0,
-                description="This is minor missing element",
-                suggested_fix="Add safety instructions to the product documentation.",
-                level=MissingElementLevel.MINOR,
-            ),
-            MissingElement(
-                id=1,
-                description="This is major missing element",
-                suggested_fix="Include detailed usage instructions in the product manual.",
-                level=MissingElementLevel.MAJOR,
-            ),
-            MissingElement(
-                id=2,
-                description="This is critical missing element",
-                suggested_fix="Ensure the product complies with all safety regulations.",
-                level=MissingElementLevel.CRITICAL,
-            ),
-        ],
-        risk_indicators=[
-            RiskIndicator(
-                description="This is a low risk indicator",
-                severity=RiskIndicatorSeverity.LOW,
-            ),
-            RiskIndicator(
-                description="This is a medium risk indicator",
-                severity=RiskIndicatorSeverity.MEDIUM,
-            ),
-            RiskIndicator(
-                description="This is a high risk indicator",
-                severity=RiskIndicatorSeverity.HIGH,
-            ),
-        ],
-        phrase_conflicts=[
-            PhraseConflict(
-                id=0,
-                statement="This is a phrase conflict statement",
-                conflicting_regulation="This is the conflicting regulation",
-                suggested_fix="This is the suggested fix for the phrase conflict",
-            ),
-            PhraseConflict(
-                id=1,
-                statement="This is another phrase conflict statement",
-                conflicting_regulation="This is another conflicting regulation",
-                suggested_fix="This is another suggested fix for the phrase conflict",
-            ),
-            PhraseConflict(
-                id=2,
-                statement="This is yet another phrase conflict statement",
-                conflicting_regulation="This is yet another conflicting regulation",
-                suggested_fix="This is yet another suggested fix for the phrase conflict",
-            ),
-        ],
-        user_acceptance=False,
-    )
-    await ClaimBuilder.find(
-        ClaimBuilder.product_id == product_id,
-    ).delete_many()
-    await claim_builder.save()
-    logger.info(
-        f"Analyzed product profile for product: {product_id}, including {number_of_documents} documents."
-    )
-    await lock.release()
-    logger.info(f"Released lock for product {product_id}")
+
+        thread = client.beta.threads.create()
+        QUESTION = (
+            "Read all uploaded PDF documents and extract all relevant information. "
+            "Return a JSON object matching the ClaimBuilder schema (structure provided in your system instructions). "
+            "Include as much detail as possible."
+        )
+        client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=QUESTION,
+            attachments=[
+                {"file_id": fid, "tools": [{"type": "file_search"}]} for fid in file_ids
+            ],
+        )
+
+        run = client.beta.threads.runs.create(
+            thread_id=thread.id, assistant_id=assistant.id
+        )
+        for _ in range(60):
+            run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+            if run.status == "completed":
+                break
+            if run.status == "failed":
+                logger.error(f"Assistant run failed: {run.error}")
+                raise HTTPException(502, "Assistant failed")
+            if run.status == "requires_action":
+                tool_calls = run.required_action.submit_tool_outputs.tool_calls
+                tool_outputs = [
+                    {"tool_call_id": tc.id, "output": ""} for tc in tool_calls
+                ]
+                run = client.beta.threads.runs.submit_tool_outputs(
+                    thread_id=thread.id,
+                    run_id=run.id,
+                    tool_outputs=tool_outputs,
+                )
+            await asyncio.sleep(5)
+
+        # Retrieve assistant message
+        msgs = client.beta.threads.messages.list(thread_id=thread.id)
+        result_text = None
+        for msg in msgs.data:
+            if msg.role == "assistant":
+                result_text = msg.content[0].text.value
+                break
+        if not result_text:
+            raise HTTPException(502, "No assistant response found.")
+
+        claim_builder_dict = parse_openai_json(result_text)
+
+        # Cleanup assistant and files
+        try:
+            client.beta.assistants.delete(assistant.id)
+        except Exception:
+            pass
+        for fid in file_ids:
+            try:
+                client.files.delete(fid)
+            except Exception:
+                pass
+
+        await ClaimBuilder.find(ClaimBuilder.product_id == product_id).delete_many()
+        record = {**claim_builder_dict, "product_id": product_id}
+        claim_builder = ClaimBuilder(**record)
+        for draft in claim_builder.draft:
+            draft.updated_by = "AI"
+        await claim_builder.save()
+        logger.info(
+            f"Analyzed product profile for product: {product_id}, including {number_of_documents} documents."
+        )
+        await progress.complete()
+
+    except Exception as exc:
+        logger.error(f"Error analyzing {product_id}: {exc}")
+        raise
+    finally:
+        await lock.release()
+        logger.info(f"Released lock for product {product_id}")

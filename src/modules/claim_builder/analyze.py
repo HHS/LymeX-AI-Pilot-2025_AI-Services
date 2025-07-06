@@ -1,8 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
-from enum import Enum
 from io import BytesIO
-from typing import Dict, List, Union, get_args, get_origin
 from fastapi import HTTPException
 import httpx
 from loguru import logger
@@ -13,6 +11,7 @@ from src.modules.claim_builder.model import AnalyzeClaimBuilderProgress, ClaimBu
 from src.infrastructure.redis import redis_client
 from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.parse_openai_json import parse_openai_json
+from src.utils.prompt import model_to_schema
 
 
 class AnalyzeProgress:
@@ -61,68 +60,6 @@ class AnalyzeProgress:
         logger.info(f"Progress complete for {self.progress.product_id}")
 
 
-def get_enum_values(enum_type):
-    return [e.value for e in enum_type]
-
-
-def field_type_repr(field_type):
-    origin = get_origin(field_type)
-    if origin is Union:
-        args = get_args(field_type)
-        if type(None) in args:
-            other = [a for a in args if a is not type(None)]
-            return f"{field_type_repr(other[0])} | null"
-        else:
-            return " | ".join([field_type_repr(a) for a in args])
-    if origin is list or origin is List:
-        item_type = get_args(field_type)[0]
-        return f"list[{field_type_repr(item_type)}]"
-    if origin is dict or origin is Dict:
-        key_type, val_type = get_args(field_type)
-        return f"dict[{field_type_repr(key_type)}, {field_type_repr(val_type)}]"
-    if hasattr(field_type, "__fields__"):
-        return "object"
-    if isinstance(field_type, type) and issubclass(field_type, Enum):
-        return (
-            "enum(" + " | ".join([repr(v) for v in get_enum_values(field_type)]) + ")"
-        )
-    if field_type is str:
-        return "string"
-    if field_type is int:
-        return "int"
-    if field_type is bool:
-        return "boolean"
-    if field_type is float:
-        return "float"
-    if field_type is datetime:
-        return "ISO8601 datetime string"
-    return str(field_type)
-
-
-def model_to_schema(model: type[BaseModel], indent: int = 0) -> str:
-    pad = "  " * indent
-    lines = ["{"]
-    for name, field in model.model_fields.items():
-        typ = field.annotation
-        if hasattr(typ, "__fields__"):  # Nested model
-            value = model_to_schema(typ, indent + 1)
-        elif get_origin(typ) in [list, List]:
-            subtyp = get_args(typ)[0]
-            if hasattr(subtyp, "__fields__"):
-                value = f"[{model_to_schema(subtyp, indent + 2)}{pad}  ]"
-            elif isinstance(subtyp, type) and issubclass(subtyp, Enum):
-                value = f"list[{field_type_repr(subtyp)}]"
-            else:
-                value = f"list[{field_type_repr(subtyp)}]"
-        elif isinstance(typ, type) and issubclass(typ, Enum):
-            value = field_type_repr(typ)
-        else:
-            value = field_type_repr(typ)
-        lines.append(f'{pad}  "{name}": {value},')
-    lines.append(pad + "}")
-    return "\n".join(lines)
-
-
 def build_claim_builder_instructions(ClaimBuilder: type[BaseModel]) -> str:
     schema_str = model_to_schema(ClaimBuilder)
     prompt = f"""
@@ -161,17 +98,12 @@ async def analyze_claim_builder(product_id: str) -> None:
     number_of_documents = len(docs)
 
     progress = AnalyzeProgress()
-    await progress.initialize(product_id, number_of_documents)
+    await progress.initialize(product_id, 1)
 
     try:
-        await ClaimBuilder.find(
-            ClaimBuilder.product_id == product_id,
-        ).delete_many()
-
         client = get_openai_client()
         file_ids: list[str] = []
 
-        # Upload each document with retry
         for doc in docs:
             upload_id = None
             async for attempt in AsyncRetrying(
@@ -191,10 +123,8 @@ async def analyze_claim_builder(product_id: str) -> None:
             file_ids.append(upload_id)
             logger.info(f"Uploaded {doc.file_name} as {upload_id}")
 
-        # Build schema for function tool
         function_schema = ClaimBuilder.model_json_schema(by_alias=True)
 
-        # Create an assistant with file_search and function tool
         assistant = client.beta.assistants.create(
             instructions=build_claim_builder_instructions(ClaimBuilder),
             model="gpt-4.1",
@@ -211,7 +141,6 @@ async def analyze_claim_builder(product_id: str) -> None:
             ],
         )
 
-        # Start a thread and send user question
         thread = client.beta.threads.create()
         QUESTION = (
             "Read all uploaded PDF documents and extract all relevant information. "
@@ -227,11 +156,10 @@ async def analyze_claim_builder(product_id: str) -> None:
             ],
         )
 
-        # Run the assistant and poll for completion
         run = client.beta.threads.runs.create(
             thread_id=thread.id, assistant_id=assistant.id
         )
-        for _ in range(60):  # up to 5 minutes
+        for _ in range(60):
             run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
             if run.status == "completed":
                 break
@@ -260,7 +188,7 @@ async def analyze_claim_builder(product_id: str) -> None:
         if not result_text:
             raise HTTPException(502, "No assistant response found.")
 
-        claim_builder = parse_openai_json(result_text)
+        claim_builder_dict = parse_openai_json(result_text)
 
         # Cleanup assistant and files
         try:
@@ -274,8 +202,11 @@ async def analyze_claim_builder(product_id: str) -> None:
                 pass
 
         await ClaimBuilder.find(ClaimBuilder.product_id == product_id).delete_many()
-        record = {**claim_builder, "product_id": product_id}
-        await ClaimBuilder(**record).save()
+        record = {**claim_builder_dict, "product_id": product_id}
+        claim_builder = ClaimBuilder(**record)
+        for draft in claim_builder.draft:
+            draft.updated_by = "AI"
+        await claim_builder.save()
         logger.info(
             f"Analyzed product profile for product: {product_id}, including {number_of_documents} documents."
         )

@@ -23,3 +23,12 @@ class PerformanceTestingDocument(Document, PerformanceTesting):
         """Override to auto stamp `updated_at`."""
         self.updated_at = datetime.utcnow()
         return await super().save(*args, **kwargs)
+
+class AnalyzePerformanceTestingProgress(Document):
+    product_id: str = Field(index=True)
+    total_files: int
+    processed_files: int
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "analyze_performance_progress"

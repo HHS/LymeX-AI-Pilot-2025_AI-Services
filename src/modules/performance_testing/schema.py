@@ -1,13 +1,3 @@
-"""Performance‑Testing data models
-
-This file defines the Pydantic schema used by the *performance_testing* module.  It mirrors the
-headings and sub‑sections in the questionnaire so the OpenAI assistant can populate it directly.
-
-✔  Consistent naming with existing modules (e.g. *product_profile*)
-✔  Optional nested objects so the document can be created early and enriched incrementally
-✔  Enumerations for risk level & status to keep front‑end filters predictable
-"""
-
 from __future__ import annotations
 
 import enum

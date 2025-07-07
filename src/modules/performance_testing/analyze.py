@@ -1,212 +1,230 @@
+"""
+1. Single assistant instance with 12 tools (analytical, comparison, clinical …)
+2. `_generic_extract()` drives the loop and validation.
+3. Thin wrappers list which files to pass and which schema / attr to use.
+"""
+
 from __future__ import annotations
 
-import asyncio
+import asyncio, json
 from datetime import datetime
-from typing import List
-from io import BytesIO
 from pathlib import Path
+from typing import List
 
-import json, pprint #----------
-
-from loguru import logger
 from fastapi import HTTPException
+from loguru import logger
 
 from src.infrastructure.openai import get_openai_client
 from src.infrastructure.redis import redis_client
 from src.modules.performance_testing.model import PerformanceTestingDocument
-from src.modules.performance_testing.schema import AnalyticalStudy
+from src.modules.performance_testing.schema import (
+    AnalyticalStudy,
+    ComparisonStudy,
+    ClinicalStudy,
+    AnimalTesting,
+    EMCSafety,
+    WirelessCoexistence,
+    SoftwarePerformance,
+    Interoperability,
+    Biocompatibility,
+    SterilityValidation,
+    ShelfLife,
+    CyberSecurity,
+)
 
-
-async def _get_or_create(product_id: str) -> PerformanceTestingDocument:
-    doc = await PerformanceTestingDocument.find_one(
-        {"product_id": product_id}
-    )
-    if doc is None:
-        doc = PerformanceTestingDocument(product_id=product_id)
+# ───────── helpers ───────────────────────────────────────────
+async def _get_or_create(pid: str) -> PerformanceTestingDocument:
+    doc = await PerformanceTestingDocument.find_one({"product_id": pid})
+    if not doc:
+        doc = PerformanceTestingDocument(product_id=pid)
         await doc.insert()
     return doc
 
+async def _maybe_upload_local_file(client, ids: List[str]) -> List[str]:
+    if ids != ["local"]:
+        return ids
+    pdf = Path("dev_assets/perf_testing_dummy.pdf")
+    with pdf.open("rb") as fh:
+        fid = client.files.create(file=fh, purpose="assistants").id
+    logger.info("🔄 Using local PDF {} → {}", pdf.name, fid)
+    return [fid]
 
-async def _patch_section(doc: PerformanceTestingDocument, section_name: str, payload):
-    setattr(doc, section_name, payload)
-    doc.updated_at = datetime.utcnow()
-    await doc.save()
-
-# create an assistant pre‑configured for Analytical extraction
-async def _create_analytical_assistant(client) -> str:
-    function_schema = AnalyticalStudy.model_json_schema(by_alias=True)
+# ───────── assistant ────────────────────────────────────────
+async def _assistant_id(client) -> str:
+    tools = [
+        {"type": "file_search"},
+    ]
+    mapping = {
+        "submit_analytical_section": AnalyticalStudy,
+        "submit_comparison_section": ComparisonStudy,
+        "submit_clinical_section": ClinicalStudy,
+        "submit_animal_section": AnimalTesting,
+        "submit_emc_section": EMCSafety,
+        "submit_wireless_section": WirelessCoexistence,
+        "submit_software_section": SoftwarePerformance,
+        "submit_interop_section": Interoperability,
+        "submit_biocomp_section": Biocompatibility,
+        "submit_sterility_section": SterilityValidation,
+        "submit_shelf_life_section": ShelfLife,
+        "submit_cyber_section": CyberSecurity,
+    }
+    for name, cls in mapping.items():
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": f"Return {cls.__name__} JSON.",
+                "parameters": cls.model_json_schema(by_alias=True),
+            },
+        })
 
     assistant = client.beta.assistants.create(
+        name="Performance‑Testing extractor",
+        model="gpt-4o",
         instructions=(
-            "You are an FDA performance-testing analyst. Parse any attached "
-            "analytical-performance protocols or reports and ALWAYS respond by "
-            "calling the function `submit_analytical_section`. "
-            "If no analytical data is found, call the function with "
-            "performed=false and key_results='not available'. "
-            "Do not output plain text." #---------------------------------------------------------------
+            "You are an FDA performance-testing analyst. For each question‑naire "
+            "section respond ONLY by calling the matching function tool named "
+            "'submit_*_section'. If no data for a section, set performed=false "
+            "or return key_results='not available'. Never reply with free text."
         ),
-        model="gpt-4o",  # changed to gpt-40 to support file search
-        tools=[
-            {"type": "file_search"},
-            {"type": "function", "function": {
-                "name": "submit_analytical_section",
-                "description": "Return analytical‑performance results.",
-                "parameters": function_schema,
-            }},
-        ],
+        tools=tools,
     )
-    return assistant.id
+    return assistant.id, mapping
 
-
-# Development helper: allow local PDF when attachment_ids == ["local"] for testing and debugging
-async def _maybe_upload_local_file(client, attachment_ids: List[str]) -> List[str]:
-    if attachment_ids != ["local"]:
-        return attachment_ids
-
-    dev_pdf = Path("C:/Users/yishu/Downloads/EMC dummy report.pdf")
-    if not dev_pdf.exists():
-        raise FileNotFoundError(dev_pdf)
-    with dev_pdf.open("rb") as f:
-        uploaded = client.files.create(file=f, purpose="assistants")
-    logger.info(f"🔄 Using local PDF {dev_pdf.name} → {uploaded.id}")
-    return [uploaded.id]
-
-
-# Extraction routine for Analytical Performance
-async def _extract_analytical(client, assistant_id: str, product_id: str, attachment_ids: List[str]):
-    attachment_ids = await _maybe_upload_local_file(client, attachment_ids)
-    if not attachment_ids:
-        logger.warning("No attachments for analytical extraction; skipping")
+# ───────── generic extractor ─────────────────────────────────
+async def _generic_extract(
+    client,
+    assistant_id: str,
+    product_id: str,
+    attachments: List[str],
+    tool_name: str,
+    schema_cls,
+    attr_name: str,
+    prompt: str,
+):
+    attachments = await _maybe_upload_local_file(client, attachments)
+    if not attachments:
+        logger.warning("No files for {}", tool_name)
         return
 
-    # Map assistant file‑search IDs (one‑to‑one mapping in this simplified flow)
     thread = client.beta.threads.create()
-
     client.beta.threads.messages.create(
         thread_id=thread.id,
         role="user",
-        content=(
-            "Analyse the attached analytical‑performance files and return the "
-            "AnalyticalStudy JSON via the function tool."
-        ),
-        attachments=[{"file_id": fid, "tools": [{"type": "file_search"}]} for fid in attachment_ids],
+        content=prompt,
+        attachments=[{"file_id": fid, "tools": [{"type": "file_search"}]} for fid in attachments],
     )
 
-    
-    # Run the assistant and poll for completion --------------------------------------------------------------
     run = client.beta.threads.runs.create(thread_id=thread.id, assistant_id=assistant_id)
+    record: dict | None = None
 
-    print(f" run_id: {run.id}") #
-
-    section_json: dict | None = None #
-
-    for _ in range(120):  # up to 10 minutes
+    for _ in range(120):
         run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
-    
-
-        if run.status == "completed":
-            break
-            
-        if run.status == "failed":
-            logger.error(f"Assistant run failed: {run.error}")
-            raise HTTPException(502, "Assistant failed")
-        
         if run.status == "requires_action":
-            ra = run.required_action #
-            print("    ↳ required_action:", ra.type) #
-
-            tool_calls = run.required_action.submit_tool_outputs.tool_calls
-            tool_outputs = []
-            # only keep first non-empty JSON we receive
-            if section_json: #--------------------------
-                already_have_json = True
-            else:
-                already_have_json = False #-------------------
-
-            for tc in tool_calls:
-                pprint.pprint(tc.model_dump(), depth=3)
-                if tc.type == "function" and tc.function.name == "submit_analytical_section":
-                    if section_json is None:            # capture only the first time
-                        arg_obj = tc.function.arguments
-                        # SDK returns a dict, but older versions return a JSON string
-                        if isinstance(arg_obj, str):
-                            try:
-                                section_json = json.loads(arg_obj)
-                            except json.JSONDecodeError as e:
-                                print("⚠️  could not decode JSON:", e)
-                        else:
-                            section_json = arg_obj      # already a dict
-                    tool_outputs.append({"tool_call_id": tc.id, "output": "received"})
-
+            outs = []
+            calls = run.required_action.submit_tool_outputs.tool_calls
+            for tc in calls:
+                if tc.type == "function" and tc.function.name == tool_name:
+                    if record is None:
+                        arg = tc.function.arguments
+                        record = json.loads(arg) if isinstance(arg, str) else arg
+                    outs.append({"tool_call_id": tc.id, "output": "received"})
                 elif tc.type == "file_search":
-                    tool_outputs.append({
-                        "tool_call_id": tc.id,
-                        "output": {"data": [{"page": 1, "snippet": ""}]},
-                    })
-
-            run = client.beta.threads.runs.submit_tool_outputs(
-                thread_id=thread.id,
-                run_id=run.id,
-                tool_outputs=tool_outputs,
+                    outs.append({"tool_call_id": tc.id, "output": {"data": [{"page": 1, "snippet": ""}]}})
+            client.beta.threads.runs.submit_tool_outputs(
+                thread_id=thread.id, run_id=run.id, tool_outputs=outs
             )
-        
-        elif run.status in ("completed", "failed", "cancelled", "expired"): #
-            print("🔚 final status:", run.status) #
-            break #
-
-        print(f"Status = {run.status}")
-
+        elif run.status in ("completed", "failed", "cancelled", "expired"):
+            break
         await asyncio.sleep(5)
-        # -------------------------------------------------------------------------------------
 
-    if section_json is None:
-        # 🔍 fallback – look for plain-text JSON in assistant messages
-        msgs = client.beta.threads.messages.list(thread_id=thread.id)
-
-        for msg in msgs.data:
-            if msg.role != "assistant":
-                continue
-            try:
-                # the assistant’s first content part is usually text
-                txt = msg.content[0].text.value
-                section_json = json.loads(txt)
-                break
-            except Exception:
-                continue
-    
-    if not section_json:
-        logger.warning("Assistant did not return AnalyticalStudy JSON; skipping")
+    # fallback plain‑text JSON
+    if record is None:
+        for msg in client.beta.threads.messages.list(thread_id=thread.id).data:
+            if msg.role == "assistant":
+                try:
+                    record = json.loads(msg.content[0].text.value)
+                    break
+                except Exception:
+                    continue
+    if record is None:
+        logger.warning("{}: no JSON returned", tool_name)
         return
 
+    # key normalisation
+    if "attachments" in record:
+        record["attachment_ids"] = [a.get("id") for a in record.pop("attachments")]
+    if "pages" in record:
+        record["page_refs"] = [p.get("page") for p in record.pop("pages")]
+
     try:
-        section = AnalyticalStudy.parse_obj(section_json)   # validate *this* dict
+        obj = schema_cls.parse_obj(record)
+        logger.debug("🔍 {} JSON:\n{}", tool_name, json.dumps(record, indent=2))
     except Exception as exc:
-        logger.error(f"AnalyticalStudy validation failed: {exc}")
+        logger.warning("{} validation failed: {}", tool_name, exc)
         return
 
     doc = await _get_or_create(product_id)
-    doc.analytical.append(section)
+    #getattr(doc, attr_name).append(obj)
+    
+    slot = getattr(doc, attr_name)
+    if isinstance(slot, list):
+        slot.append(obj)
+    else:
+        setattr(doc, attr_name, obj)
+    
     await doc.save()
-    logger.info(f"✅ Analytical section saved for {product_id}")
+    logger.info("✅ Saved {} section for {}", tool_name, product_id)
 
+# ───────── thin wrappers for each questionnaire section ──────
+async def _run_all_sections(client, aid, mapping, pid, atts):
+    prompts = {
+        "submit_analytical_section": "Extract analytical-performance data.",
+        "submit_comparison_section": "Extract method/matrix comparison study data.",
+        "submit_clinical_section": "Extract clinical-performance study data.",
+        "submit_animal_section": "Extract GLP animal testing data.",
+        "submit_emc_section": "Extract EMC / electrical-safety data.",
+        "submit_wireless_section": "Extract wireless-coexistence data.",
+        "submit_software_section": "Extract software performance data.",
+        "submit_interop_section": "Extract interoperability data.",
+        "submit_biocomp_section": "Extract biocompatibility data.",
+        "submit_sterility_section": "Extract sterility validation data.",
+        "submit_shelf_life_section": "Extract shelf-life / aging data.",
+        "submit_cyber_section": "Extract cyber-security data.",
+    }
 
-# public coroutine for all submodules of performance testing
+    attr_map = {
+    "AnalyticalStudy":      "analytical",
+    "ComparisonStudy":      "comparison",
+    "ClinicalStudy":        "clinical",
+    "AnimalTesting":        "animal_testing",   # single object
+    "EMCSafety":            "emc_safety",       # single object
+    "WirelessCoexistence":  "wireless",         # single object
+    "SoftwarePerformance":  "software",
+    "Interoperability":     "interoperability",
+    "Biocompatibility":     "biocompatibility",
+    "SterilityValidation":  "sterility",
+    "ShelfLife":            "shelf_life",
+    "CyberSecurity":        "cybersecurity",
+    }
+
+    for tool, cls in mapping.items():
+        #attr = cls.__name__.replace("Study", "").replace("Validation", "").lower()
+        attr = attr_map[cls.__name__]
+        attr = attr if attr != "shelflife" else "shelf_life"
+        await _generic_extract(
+            client, aid, pid, atts, tool, cls, attr, prompts[tool]
+        )
+
+# ───────── public entry point ───────────────────────────────
 async def analyze_performance_testing(product_id: str, attachment_ids: List[str]):
-
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
     if not await lock.acquire(blocking=False):
-        logger.warning(f"Performance‑testing analysis already running for {product_id}")
+        logger.warning("Analysis already running for {}", product_id)
         return
-
     try:
         client = get_openai_client()
-        assistant_id = await _create_analytical_assistant(client)
-
-        await _extract_analytical(client, assistant_id, product_id, attachment_ids)
-        # TODO: replicate for EMC, Clinical, etc.
-
+        aid, mapping = await _assistant_id(client)
+        await _run_all_sections(client, aid, mapping, product_id, attachment_ids)
     finally:
-        try:
-            await lock.release()
-        except Exception:
-            pass
+        await lock.release()

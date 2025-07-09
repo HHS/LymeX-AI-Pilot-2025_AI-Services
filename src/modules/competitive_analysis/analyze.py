@@ -85,7 +85,7 @@ class AnalyzeProgress:
         self.progress.processed_files = self.progress.total_files
         self.progress.updated_at = datetime.now(timezone.utc)
         await self.progress.save()
-        logger.info(f"Progress complete for {self.progress.product_id}")
+        logger.info(f"Progress complete for {self.progress.reference_product_id}")
 
 
 async def create_competitive_analysis(
@@ -146,18 +146,18 @@ async def create_competitive_analysis(
 
     # — your full instruction string, verbatim —
     instructions = (
-        "You are an expert in competitive analysis for medical devices. "
+        "You are an expert in competitive analysis for medical devices, focusing on diagnostic kits. "
         "You will analyze the provided product profile documents and competitor documents to create a comprehensive competitive analysis. "
-        "Your analysis should include the following fields: product_name, reference_number, regulatory_pathway, fda_approved, ce_marked, "
-        "is_ai_generated, confidence_score, sources, your_product_summary, competitor_summary of the competitive. "
-        "You will receive a list of product profile documents and a competitor document. "
-        "The product profile documents will contain information about the product, including its name, reference number, regulatory pathway, "
-        "FDA approval status, CE marking status, and other relevant information. "
-        "The competitor document will contain information about a competitor's product. "
-        "You will analyze the product profile documents and the competitor document to create a competitive analysis. "
-        "You will also provide a summary of the product profile and the competitor document. "
-        "The competitive analysis should be returned in the CompetitiveAnalysis model format. "
-        "If you cannot determine a field, set it to null."
+        "Your response must contain two detailed sections: 'your_product' and 'competitor', each matching the CompetitiveAnalysisDetail model fields. "
+        "For each, extract as much relevant data as possible from the respective documents, including product specifications, regulatory status, clinical data, and performance details. "
+        "If a field cannot be determined from the provided documents, set its value to 'Not Available'. "
+        "Be precise and comprehensive, filling each string field with all available information, including summary tables or lists when present. "
+        "The comparison should help clearly identify similarities, differences, and unique selling points for each product, but do not add subjective judgments outside of the provided data. "
+        "Return the result as a CompetitiveAnalysis object containing: "
+        "'your_product': CompetitiveAnalysisDetail, "
+        "'competitor': CompetitiveAnalysisDetail. "
+        "Only use 'Not Available' for fields you cannot extract from the documents. "
+        "Do not use null values or leave any field blank."
     )
 
     logger.info("Calling OpenAI chat completion for competitive analysis")
@@ -268,5 +268,8 @@ async def analyze_competitive_analysis(
     await CompetitiveAnalysis.insert_many(competitive_analysis_list)
     await progress.complete()
 
-    await lock.release()
-    logger.info(f"Released lock for product {product_id}")
+    try:
+        await lock.release()
+        logger.info(f"Released lock for product {product_id}")
+    except Exception as e:
+        logger.error(f"Failed to release lock for product {product_id}: {e}")

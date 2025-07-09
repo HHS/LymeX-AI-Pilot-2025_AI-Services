@@ -144,20 +144,20 @@ async def create_competitive_analysis(
         "parameters": CompetitiveAnalysis.schema(),  # Pydantic → JSON Schema
     }
 
-    # — your full instruction string, verbatim —
     instructions = (
-        "You are an expert in competitive analysis for medical devices, focusing on diagnostic kits. "
-        "You will analyze the provided product profile documents and competitor documents to create a comprehensive competitive analysis. "
-        "Your response must contain two detailed sections: 'your_product' and 'competitor', each matching the CompetitiveAnalysisDetail model fields. "
-        "For each, extract as much relevant data as possible from the respective documents, including product specifications, regulatory status, clinical data, and performance details. "
+        "You are an expert in competitive analysis for medical diagnostic devices. "
+        "Your task is to extract and present ALL available details from the provided product and competitor documents for each field of the CompetitiveAnalysisDetail model. "
+        "For each field, include every relevant detail: all text, lists, tables, or numerical data present in the documents. "
+        "If a document contains a list, a table, or a long descriptive section for a field, include the entire content for that field (as multi-line text if needed). "
+        "Do not summarize or condense information for individual fields. Use multi-line formatting and bullet points to preserve the structure from the source. "
+        "For example, if the 'antigens' field lists several proteins, include the full bullet list. If the 'performance' field has a table or multi-part results, format the full results as text. "
+        "Include all relevant descriptions, specifications, and values found—do not leave out any part of the source content for each field. "
         "If a field cannot be determined from the provided documents, set its value to 'Not Available'. "
-        "Be precise and comprehensive, filling each string field with all available information, including summary tables or lists when present. "
-        "The comparison should help clearly identify similarities, differences, and unique selling points for each product, but do not add subjective judgments outside of the provided data. "
-        "Return the result as a CompetitiveAnalysis object containing: "
+        "Do not use null values or leave any field blank. "
+        "Return your response as a CompetitiveAnalysis object containing: "
         "'your_product': CompetitiveAnalysisDetail, "
         "'competitor': CompetitiveAnalysisDetail. "
-        "Only use 'Not Available' for fields you cannot extract from the documents. "
-        "Do not use null values or leave any field blank."
+        "Do not add any extra summary or commentary outside the required fields."
     )
 
     logger.info("Calling OpenAI chat completion for competitive analysis")

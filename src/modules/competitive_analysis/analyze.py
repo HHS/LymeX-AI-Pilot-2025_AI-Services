@@ -85,7 +85,7 @@ class AnalyzeProgress:
         self.progress.processed_files = self.progress.total_files
         self.progress.updated_at = datetime.now(timezone.utc)
         await self.progress.save()
-        logger.info(f"Progress complete for {self.progress.product_id}")
+        logger.info(f"Progress complete for {self.progress.reference_product_id}")
 
 
 async def create_competitive_analysis(
@@ -144,20 +144,20 @@ async def create_competitive_analysis(
         "parameters": CompetitiveAnalysis.schema(),  # Pydantic → JSON Schema
     }
 
-    # — your full instruction string, verbatim —
     instructions = (
-        "You are an expert in competitive analysis for medical devices. "
-        "You will analyze the provided product profile documents and competitor documents to create a comprehensive competitive analysis. "
-        "Your analysis should include the following fields: product_name, reference_number, regulatory_pathway, fda_approved, ce_marked, "
-        "is_ai_generated, confidence_score, sources, your_product_summary, competitor_summary of the competitive. "
-        "You will receive a list of product profile documents and a competitor document. "
-        "The product profile documents will contain information about the product, including its name, reference number, regulatory pathway, "
-        "FDA approval status, CE marking status, and other relevant information. "
-        "The competitor document will contain information about a competitor's product. "
-        "You will analyze the product profile documents and the competitor document to create a competitive analysis. "
-        "You will also provide a summary of the product profile and the competitor document. "
-        "The competitive analysis should be returned in the CompetitiveAnalysis model format. "
-        "If you cannot determine a field, set it to null."
+        "You are an expert in competitive analysis for medical diagnostic devices. "
+        "Your task is to extract and present ALL available details from the provided product and competitor documents for each field of the CompetitiveAnalysisDetail model. "
+        "For each field, include every relevant detail: all text, lists, tables, or numerical data present in the documents. "
+        "If a document contains a list, a table, or a long descriptive section for a field, include the entire content for that field (as multi-line text if needed). "
+        "Do not summarize or condense information for individual fields. Use multi-line formatting and bullet points to preserve the structure from the source. "
+        "For example, if the 'antigens' field lists several proteins, include the full bullet list. If the 'performance' field has a table or multi-part results, format the full results as text. "
+        "Include all relevant descriptions, specifications, and values found—do not leave out any part of the source content for each field. "
+        "If a field cannot be determined from the provided documents, set its value to 'Not Available'. "
+        "Do not use null values or leave any field blank. "
+        "Return your response as a CompetitiveAnalysis object containing: "
+        "'your_product': CompetitiveAnalysisDetail, "
+        "'competitor': CompetitiveAnalysisDetail. "
+        "Do not add any extra summary or commentary outside the required fields."
     )
 
     logger.info("Calling OpenAI chat completion for competitive analysis")
@@ -268,5 +268,8 @@ async def analyze_competitive_analysis(
     await CompetitiveAnalysis.insert_many(competitive_analysis_list)
     await progress.complete()
 
-    await lock.release()
-    logger.info(f"Released lock for product {product_id}")
+    try:
+        await lock.release()
+        logger.info(f"Released lock for product {product_id}")
+    except Exception as e:
+        logger.error(f"Failed to release lock for product {product_id}: {e}")

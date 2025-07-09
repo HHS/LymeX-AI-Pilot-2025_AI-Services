@@ -88,6 +88,7 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> str:
 
         # Retrieve and return the single-paragraph response
         messages = client.beta.threads.messages.list(thread_id=thread_id).data
+        print(messages)
         response = next(
             (m.content[0].text.value for m in messages if m.role == "assistant"), None
         )

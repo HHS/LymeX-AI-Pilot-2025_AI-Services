@@ -161,3 +161,204 @@ class AnalyzeCompetitiveAnalysisProgressResponse(BaseModel):
     updated_at: datetime = Field(
         ..., description="Date and time when the progress was last updated"
     )
+
+
+class CompetitiveAnalysisDetail(BaseModel):
+    k_number: str = Field(
+        "Not Available",
+        description="FDA 510(k) K Number for the device, if available (e.g., K233367)."
+    )
+    product_code: str = Field(
+        "Not Available",
+        description="FDA product code (e.g., LSR) identifying the regulatory product category."
+    )
+    regulation_number: str = Field(
+        "Not Available",
+        description="FDA regulation number for the device type (e.g., 866.3830)."
+    )
+    classification: str = Field(
+        "Not Available",
+        description="FDA device classification (e.g., Class 2)."
+    )
+    prescription_otc: str = Field(
+        "Not Available",
+        description="Indicates if the device is Prescription Only, Over-the-counter (OTC), or other."
+    )
+    predicate_device: str = Field(
+        "Not Available",
+        description="Name and K Number of predicate device(s) for FDA clearance; reference to previous device(s) if applicable."
+    )
+    supplementary_data_source: str = Field(
+        "Not Available",
+        description="Web link or reference to package insert, FDA summary, or other official documentation used for data extraction."
+    )
+
+    indications_for_use_statement: str = Field(
+        "Not Available",
+        description="Exact or paraphrased Indications for Use (IFU) statement describing the intended purpose, clinical indications, and limitations of the test."
+    )
+    intended_use_population: str = Field(
+        "Not Available",
+        description="Description of patient/sample population for which the test is intended (e.g., symptomatic, suspected Lyme disease patients, etc.)."
+    )
+    environment_of_use: str = Field(
+        "Not Available",
+        description="Intended setting for device use (e.g., Clinical Laboratory, Point-of-care)."
+    )
+    operating_conditions: str = Field(
+        "Not Available",
+        description="Temperature and handling conditions required for kit operation (e.g., 15–30°C or 59–86°F, bring to room temp before use)."
+    )
+    storage_conditions: str = Field(
+        "Not Available",
+        description="Temperature and storage requirements for unopened kit and components (e.g., 2–8°C)."
+    )
+    components_accessories: str = Field(
+        "Not Available",
+        description="List of all items supplied in the kit, including controls, reagents, strips/plates, package inserts, etc."
+    )
+
+    measurand: str = Field(
+        "Not Available",
+        description="Targeted analyte(s) the test detects (e.g., IgG and/or IgM antibodies to Borrelia burgdorferi)."
+    )
+    type_of_test: str = Field(
+        "Not Available",
+        description="Test technology or format (e.g., ImmunoBlot, ELISA, Microarray)."
+    )
+    method: str = Field(
+        "Not Available",
+        description="Overall method (e.g., qualitative detection, microarray, antigen-coated wells)."
+    )
+    procedure: str = Field(
+        "Not Available",
+        description="Summary of test procedure and major steps (sample prep, incubations, reading, etc.)."
+    )
+    specimen_type: str = Field(
+        "Not Available",
+        description="Type of biological sample required (e.g., serum)."
+    )
+    controls: str = Field(
+        "Not Available",
+        description="Details on positive, negative, and cutoff controls provided or required for test validation."
+    )
+    antigens: str = Field(
+        "Not Available",
+        description="Antigen types or specific proteins used for detection (e.g., VlsE, OspC, 93 kD, etc.)."
+    )
+    sample_volume: str = Field(
+        "Not Available",
+        description="Volume of specimen required for one test or well (e.g., 10 µL, 100 µL)."
+    )
+    reagents: str = Field(
+        "Not Available",
+        description="List of reagents and solutions provided in the kit (e.g., diluent, wash buffer, conjugate, substrate)."
+    )
+    result_generation: str = Field(
+        "Not Available",
+        description="How test results are read or interpreted (e.g., manual reading, automated reader, spectrophotometer, etc.)."
+    )
+
+    biocompatibility: str = Field(
+        "Not Available",
+        description="Whether any device component contacts the patient or sample directly; generally 'Not applicable' for in vitro diagnostics."
+    )
+    sterility: str = Field(
+        "Not Available",
+        description="Sterility status (e.g., single-use non-sterile, sterile, or not defined in sources)."
+    )
+    shelf_life: str = Field(
+        "Not Available",
+        description="Stability and usable life of the kit after opening or until expiration (e.g., 'Opened kit stable for 6 months')."
+    )
+    electrical_mechanical_thermal_safety: str = Field(
+        "Not Available",
+        description="Statements on electrical, mechanical, or thermal safety, if the device includes such components; otherwise 'Not Defined'."
+    )
+    electromagnetic_compatibility: str = Field(
+        "Not Available",
+        description="Statements on electromagnetic compatibility (EMC), if the device includes electronics; otherwise 'Not Defined'."
+    )
+    software_testing: str = Field(
+        "Not Available",
+        description="Details on any software associated with the device, if relevant (often 'Not applicable')."
+    )
+    cybersecurity: str = Field(
+        "Not Available",
+        description="Details on cybersecurity considerations, if any software or connectivity is present (otherwise 'Not applicable')."
+    )
+    interoperability: str = Field(
+        "Not Available",
+        description="Details on interoperability with other instruments or data systems, if present (otherwise 'Not applicable')."
+    )
+
+    reproducibility: str = Field(
+        "Not Available",
+        description="Summary of reproducibility studies (e.g., multi-site, multi-operator, blinded panels, number of sites, operators, days, runs, and performance results)."
+    )
+    precision: str = Field(
+        "Not Available",
+        description="Summary of precision/within-lab studies (e.g., duplicate runs, days, standard deviation, CV%, samples tested)."
+    )
+    analytical_specificity_interference: str = Field(
+        "Not Available",
+        description="Analytical specificity results, including healthy individuals in endemic/non-endemic areas; % specificity and n-values."
+    )
+    cross_reactivity_study: str = Field(
+        "Not Available",
+        description="Summary of cross-reactivity findings for non-target infections or autoimmune markers; list diseases tested and any observed interference."
+    )
+    interference_from_endogenous_analytes: str = Field(
+        "Not Available",
+        description="Study results for common endogenous interferents (e.g., hemoglobin, bilirubin, triglycerides); describe if test performance is affected."
+    )
+    assay_reportable_range: str = Field(
+        "Not Available",
+        description="Assay reportable range, if defined (typically 'Not applicable' for qualitative tests)."
+    )
+    traceability_stability_expected_values: str = Field(
+        "Not Available",
+        description="Any statements on traceability to standards, stability of reagents, or reference values expected in control/negative/positive populations."
+    )
+    detection_limit: str = Field(
+        "Not Available",
+        description="Lowest level of analyte detectable if specified; otherwise 'Not applicable' or 'Not Defined'."
+    )
+    assay_cutoff: str = Field(
+        "Not Available",
+        description="Definition and determination of assay cutoff for positivity (e.g., mean + 2SD, ROC analysis); or state if not available."
+    )
+
+    animal_testing_performance: str = Field(
+        "Not Available",
+        description="Animal testing data if any; otherwise, 'No animal testing performed' or 'Not applicable'."
+    )
+
+    method_comparison_sttt: str = Field(
+        "Not Available",
+        description="Study comparing the device to Standard Two-Tier Test (STTT); summarize sample numbers, protocol, and key results."
+    )
+    method_comparison_mttt: str = Field(
+        "Not Available",
+        description="Study comparing the device to Modified Two-Tier Test (MTTT); summarize sample numbers, protocol, and key results."
+    )
+    clinical_sensitivity_specificity: str = Field(
+        "Not Available",
+        description="Clinical sensitivity/specificity performance, ideally broken out by disease stage, population, and compared to comparator methods."
+    )
+    fresh_frozen_samples_comparison_study: str = Field(
+        "Not Available",
+        description="Study of test performance on fresh vs. frozen samples; summarize findings, concordance, and stability."
+    )
+    antibody_class_specificity: str = Field(
+        "Not Available",
+        description="Specificity for antibody class (e.g., study confirming IgG-only detection, no cross-reaction with IgM, etc.)."
+    )
+    clinical_cutoff: str = Field(
+        "Not Available",
+        description="Defined clinical cutoff if given (e.g., 'mean plus two SD', 'determined by ROC curve', or 'Not available')."
+    )
+    expected_values_reference_range: str = Field(
+        "Not Available",
+        description="Expected values or reference range for target population as described in the IFU or clinical data; otherwise 'Not available'."
+    )

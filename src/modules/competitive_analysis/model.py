@@ -7,6 +7,7 @@ from src.modules.competitive_analysis.schema import (
     CompetitiveAnalysisCompareItemResponse,
     CompetitiveAnalysisCompareResponse,
     CompetitiveAnalysisCompareSummary,
+    CompetitiveAnalysisDetail,
     CompetitiveAnalysisResponse,
     CompetitiveDeviceAnalysisKeyDifferenceResponse,
 )
@@ -38,6 +39,8 @@ class CompetitiveAnalysis(Document):
     competitor_summary: CompetitiveAnalysisCompareSummary
     instructions: list[str]
     type_of_use: str
+    your_product: CompetitiveAnalysisDetail
+    competitor: CompetitiveAnalysisDetail
 
     class Settings:
         name = "competitive_analysis"

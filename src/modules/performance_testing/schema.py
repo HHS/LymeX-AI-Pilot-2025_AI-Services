@@ -93,9 +93,32 @@ class AnalyticalStudy(BaseModel):
     ]
     performed: bool = False
     attachments: List[AttachmentRef] = Field(default_factory=list)
-    key_results: Optional[str] = None
     pages: List[PageRef] = Field(default_factory=list)
     confidence: Optional[float] = None  # 0‑1 from AI assessor
+     # protocol metadata
+    product_name:                Optional[str] = None
+    product_identifier:          Optional[str] = None
+    protocol_id:                 Optional[str] = None      # number & revision
+    objective:                   Optional[str] = None
+    specimen_description:        Optional[str] = None
+    specimen_collection:         Optional[str] = None
+    samples_replicates_sites:    Optional[str] = None
+    positive_controls:           Optional[str] = None
+    negative_controls:           Optional[str] = None
+    calibration_requirements:    Optional[str] = None
+    assay_steps:                 Optional[str] = None
+    data_analysis_plan:          Optional[str] = None
+    statistical_analysis_plan:   Optional[str] = None
+    acceptance_criteria:         Optional[str] = None
+    consensus_standards:         Optional[str] = None
+
+    # report-specific additions
+    deviations:                  Optional[str] = None
+    discussion:                  Optional[str] = None
+    conclusion:                  Optional[str] = None
+
+    # free-form catch-all
+    key_results:                 Optional[str] = None
 
 
 
@@ -180,9 +203,9 @@ class SoftwarePerformance(BaseModel):
 # ------------------------------ 8. Interoperability ------------------------------
 
 class Interoperability(BaseModel):
-    interfaces: List[ElectronicInterface] = Field(default_factory=list)
+    interfaces: List[ElectronicInterface] | None = None
     risk_assessment_attachment: Optional[AttachmentRef] = None
-    labeling_pages: List[PageRef] = Field(default_factory=list)
+    labeling_pages: List[PageRef] | None = None
     confidence: Optional[float] = None
 
 
@@ -190,9 +213,9 @@ class Interoperability(BaseModel):
 
 class Biocompatibility(BaseModel):
     tissue_contacting: Optional[bool] = None
-    components: List[BioMaterial] = Field(default_factory=list)
+    components: List[BioMaterial] | None = None
     repeat_exposure: Optional[bool] = None
-    test_reports: List[AttachmentRef] = Field(default_factory=list)
+    test_reports: List[AttachmentRef] | None = None
     rationale_if_no_test: Optional[str] = None
     confidence: Optional[float] = None
 

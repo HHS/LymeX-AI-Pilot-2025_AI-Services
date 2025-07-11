@@ -179,7 +179,15 @@ async def _generic_extract(
 # ───────── thin wrappers for each questionnaire section ──────
 async def _run_all_sections(client, aid, mapping, pid, atts):
     prompts = {
-        "submit_analytical_section": "Extract analytical-performance data.",
+        "submit_analytical_section": "Extract analytical-performance data. Populate these fields when present:\n"
+        "• product_name • product_identifier • protocol_id • objective • "
+        "specimen_description • specimen_collection • samples_replicates_sites • "
+        "positive_controls • negative_controls • calibration_requirements • "
+        "assay_steps • data_analysis_plan • statistical_analysis_plan • "
+        "acceptance_criteria • consensus_standards • deviations • discussion • "
+        "conclusion\n"
+        "Return them via the function tool. Use 'not available' for any field you "
+        "cannot populate.",
         "submit_comparison_section": "Extract method/matrix comparison study data.",
         "submit_clinical_section": "Extract clinical-performance study data.",
         "submit_animal_section": "Extract GLP animal testing data.",

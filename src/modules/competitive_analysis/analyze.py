@@ -92,9 +92,11 @@ async def create_competitive_analysis(
     product_profile_docs: list[ProductProfileDocumentResponse],
     competitor_document_path: Path,
 ) -> CompetitiveAnalysis:
+    logger.info("Creating competitive analysis.")
     logger.info(
-        f"Creating competitive analysis. Product profile docs: {[doc.file_name for doc in product_profile_docs]}, Competitor doc: {competitor_document_path}"
+        f"Product profile docs: {' ,'.join([doc.file_name for doc in product_profile_docs])}"
     )
+    logger.info(f"Competitor doc: {competitor_document_path}")
     client = get_openai_client()
     uploaded_ids: list[str] = []
 
@@ -131,17 +133,15 @@ async def create_competitive_analysis(
     )
     uploaded_ids.append(cfo.id)
 
-    # — capture the filenames so we know which is which —
     product_profile_file_names = [
         doc.file_name for doc in product_profile_docs if doc.file_name
     ]
     competitor_file_name = competitor_document_path.name
 
-    # — build the function schema from your Pydantic model —
     func_spec = {
         "name": "create_competitive_analysis",
         "description": "Produce a JSON object matching the CompetitiveAnalysis schema",
-        "parameters": CompetitiveAnalysis.schema(),  # Pydantic → JSON Schema
+        "parameters": CompetitiveAnalysis.model_json_schema(),
     }
 
     instructions = (
@@ -158,6 +158,7 @@ async def create_competitive_analysis(
         "'your_product': CompetitiveAnalysisDetail, "
         "'competitor': CompetitiveAnalysisDetail. "
         "Do not add any extra summary or commentary outside the required fields."
+        "Ignore two fields: 'is_ai_generated' and 'use_system_data'."
     )
 
     logger.info("Calling OpenAI chat completion for competitive analysis")

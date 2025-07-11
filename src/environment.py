@@ -26,5 +26,4 @@ class Environment(BaseSettings):
 
 environment = Environment()
 
-print("Environment variables loaded successfully.")
 logger.info("Environment variables loaded successfully.")

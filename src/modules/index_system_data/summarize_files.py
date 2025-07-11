@@ -20,6 +20,8 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> str:
     Returns:
         A single-paragraph summary string covering all uploaded documents.
     """
+    if not paths:
+        return "No documents to summarize."
     client = get_openai_client()
     uploaded_ids = []
 
@@ -82,13 +84,12 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> str:
                 break
             if status == "failed":
                 raise OpenAIError("Assistant run failed")
-            await asyncio.sleep(2)
+            await asyncio.sleep(5)
         else:
             raise OpenAIError("Assistant run timed out")
 
         # Retrieve and return the single-paragraph response
         messages = client.beta.threads.messages.list(thread_id=thread_id).data
-        print(messages)
         response = next(
             (m.content[0].text.value for m in messages if m.role == "assistant"), None
         )

@@ -90,15 +90,24 @@ class AnalyzeProgress:
 
 async def create_competitive_analysis(
     product_profile_docs: list[ProductProfileDocumentResponse],
-    competitor_document_path: Path,
+    competitor_document_paths: list[Path],
 ) -> CompetitiveAnalysis:
+    if not product_profile_docs or not competitor_document_paths:
+        logger.error("No product profile documents or competitor documents provided.")
+        raise HTTPException(
+            status_code=400,
+            detail="Product profile documents and competitor documents are required.",
+        )
     logger.info("Creating competitive analysis.")
     logger.info(
         f"Product profile docs: {' ,'.join([doc.file_name for doc in product_profile_docs])}"
     )
-    logger.info(f"Competitor doc: {competitor_document_path}")
+    logger.info(
+        f"Competitor docs: {', '.join([path.name for path in competitor_document_paths])}"
+    )
     client = get_openai_client()
-    uploaded_ids: list[str] = []
+    product_profile_uploaded_ids: list[str] = []
+    competitor_uploaded_ids: list[str] = []
 
     # — your original upload loop for product profiles —
     for doc in product_profile_docs:
@@ -115,23 +124,24 @@ async def create_competitive_analysis(
         logger.info(
             f"Uploaded product profile document {doc.file_name} to OpenAI, file_id={fo.id}"
         )
-        uploaded_ids.append(fo.id)
+        product_profile_uploaded_ids.append(fo.id)
 
     # — your original download & upload for competitor doc —
-    system_data_folder = "system_data"
-    key = f"{system_data_folder}/{competitor_document_path.name}"
-    logger.info(f"Downloading competitor document from MinIO with key={key}")
-    raw_data = await get_object(key)
-    competitor_document_path.parent.mkdir(parents=True, exist_ok=True)
-    competitor_document_path.write_bytes(raw_data)
-    logger.info(f"Saved competitor document to {competitor_document_path}")
+    for competitor_document_path in competitor_document_paths:
+        system_data_folder = "system_data"
+        key = f"{system_data_folder}/{competitor_document_path.name}"
+        logger.info(f"Downloading competitor document from MinIO with key={key}")
+        raw_data = await get_object(key)
+        competitor_document_path.parent.mkdir(parents=True, exist_ok=True)
+        competitor_document_path.write_bytes(raw_data)
+        logger.info(f"Saved competitor document to {competitor_document_path}")
 
-    with competitor_document_path.open("rb") as f:
-        cfo = client.files.create(file=f, purpose="assistants")
-    logger.info(
-        f"Uploaded competitor document {competitor_document_path.name} to OpenAI, file_id={cfo.id}"
-    )
-    uploaded_ids.append(cfo.id)
+        with competitor_document_path.open("rb") as f:
+            cfo = client.files.create(file=f, purpose="assistants")
+        logger.info(
+            f"Uploaded competitor document {competitor_document_path.name} to OpenAI, file_id={cfo.id}"
+        )
+        competitor_uploaded_ids.append(cfo.id)
 
     product_profile_file_names = [
         doc.file_name for doc in product_profile_docs if doc.file_name
@@ -172,13 +182,15 @@ async def create_competitive_analysis(
                     "product_profiles": [
                         {"file_name": name, "file_id": fid}
                         for name, fid in zip(
-                            product_profile_file_names, uploaded_ids[:-1]
+                            product_profile_file_names, product_profile_uploaded_ids
                         )
                     ],
-                    "competitor": {
-                        "file_name": competitor_file_name,
-                        "file_id": uploaded_ids[-1],
-                    },
+                    "competitor": [
+                        {"file_name": name.name, "file_id": fid}
+                        for name, fid in zip(
+                            competitor_document_paths, competitor_uploaded_ids
+                        )
+                    ],
                 }),
             },
         ],
@@ -258,7 +270,7 @@ async def analyze_competitive_analysis(
     for comp_doc in competitor_documents:
         logger.info(f"Creating competitive analysis for competitor document {comp_doc}")
         competitive_analysis = await create_competitive_analysis(
-            product_profile_docs=docs, competitor_document_path=comp_doc
+            product_profile_docs=docs, competitor_document_paths=[comp_doc]
         )
         competitive_analysis.reference_product_id = product_id
         competitive_analysis_list.append(competitive_analysis)

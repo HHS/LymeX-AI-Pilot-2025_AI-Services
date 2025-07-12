@@ -25,7 +25,7 @@ class CompetitiveAnalysisDocumentResponse(BaseModel):
     )
     file_name: str = Field(..., description="Name of the document")
     url: str = Field(..., description="URL to access the document")
-    category: str = Field(..., description="Category of the document")
+    competitor_name: str = Field(..., description="Name of the competitor")
     uploaded_at: str = Field(
         ..., description="Date and time when the document was uploaded"
     )

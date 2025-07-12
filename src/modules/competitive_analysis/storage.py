@@ -21,7 +21,7 @@ from minio.datatypes import Object
 class AnalysisDocumentInfo(TypedDict):
     file_name: str
     author: str
-    product_name: str
+    competitor_name: str
 
 
 async def analyze_competitive_analysis_document(
@@ -34,7 +34,7 @@ async def analyze_competitive_analysis_document(
         document_name=document_name,
         file_name=file_name,
         url=await generate_get_object_presigned_url(obj.object_name),
-        product_name=analysis_document_info["product_name"],
+        competitor_name=analysis_document_info["competitor_name"],
         uploaded_at=obj.last_modified.isoformat(),
         author=analysis_document_info["author"],
         content_type=obj.content_type
@@ -100,7 +100,7 @@ ANALYSIS_DOCUMENT_INFO_SCHEMA = {
     "fields": [
         {"name": "file_name", "type": "string"},
         {"name": "author", "type": "string"},
-        {"name": "product_name", "type": "string"},
+        {"name": "competitor_name", "type": "string"},
     ],
 }
 

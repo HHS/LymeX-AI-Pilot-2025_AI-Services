@@ -27,18 +27,18 @@ async def download_user_product_competitive_documents(
             with open(competitive_analysis_document_path, "wb") as f:
                 f.write(response.content)
         if (
-            competitive_analysis_document.category
+            competitive_analysis_document.competitor_name
             not in competitive_analysis_document_paths_dict
         ):
             competitive_analysis_document_paths_dict[
-                competitive_analysis_document.category
+                competitive_analysis_document.competitor_name
             ] = []
         competitive_analysis_document_paths_dict[
-            competitive_analysis_document.category
+            competitive_analysis_document.competitor_name
         ].append(competitive_analysis_document_path)
     return [
         UserProductCompetitiveDocument(
-            product_name=category, user_product_competitive_documents=paths
+            product_name=competitor_name, user_product_competitive_documents=paths
         )
-        for category, paths in competitive_analysis_document_paths_dict.items()
+        for competitor_name, paths in competitive_analysis_document_paths_dict.items()
     ]

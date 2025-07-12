@@ -4,8 +4,19 @@ from pathlib import Path
 
 from loguru import logger
 from openai import OpenAIError
+from pydantic import BaseModel
 
 from src.infrastructure.openai import get_openai_client
+
+
+class FileProductName(BaseModel):
+    file_name: str
+    product_name: str
+
+
+class FileSummary(BaseModel):
+    files: list[FileProductName]
+    summary: str
 
 
 async def summarize_files(paths: list[Path], timeout: int = 300) -> str:

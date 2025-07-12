@@ -52,6 +52,20 @@ async def analyze_competitive_analysis(
     user_competitor_documents = await download_user_product_competitive_documents(
         product_id
     )
+
+    user_docs_map = {doc.product_name: doc for doc in user_competitor_documents}
+    to_remove_index: list[int] = []
+    for i, sys_doc in enumerate(system_competitor_documents):
+        user_doc = user_docs_map.get(sys_doc.product_name)
+        if user_doc is not None:
+            user_doc.user_product_competitive_documents.append(
+                sys_doc.system_product_competitive_document
+            )
+            to_remove_index.append(i)
+
+    for i in reversed(to_remove_index):
+        system_competitor_documents.pop(i)
+
     logger.info(
         f"Found {len(system_competitor_documents)} system competitor documents and "
         f"{len(user_competitor_documents)} user competitor documents for product_id={product_id}"
@@ -60,10 +74,10 @@ async def analyze_competitive_analysis(
 
     for comp_doc in system_competitor_documents:
         logger.info(
-            f"Creating competitive analysis for competitor document {comp_doc.name}"
+            f"Creating competitive analysis for competitor document {comp_doc.product_name}"
         )
         competitive_analysis = await create_competitive_analysis(
-            product_profile_docs=docs, competitor_document_paths=[comp_doc]
+            product_profile_docs=docs, competitor_document_paths=[comp_doc.system_product_competitive_document]
         )
         competitive_analysis.reference_product_id = product_id
         competitive_analysis.use_system_data = True

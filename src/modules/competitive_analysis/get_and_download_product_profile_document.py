@@ -2,14 +2,14 @@ from pathlib import Path
 
 import httpx
 from loguru import logger
-from src.modules.index_system_data.summarize_files import summarize_files
+from src.modules.index_system_data.summarize_files import FileSummary, summarize_files
 from src.modules.product_profile.schema import ProductProfileDocumentResponse
 from src.modules.product_profile.storage import get_product_profile_documents
 
 
 async def get_and_download_product_profile_document(
     product_id: str,
-) -> tuple[list[ProductProfileDocumentResponse], str]:
+) -> tuple[list[ProductProfileDocumentResponse], FileSummary]:
     docs = await get_product_profile_documents(product_id)
     doc_paths: list[Path] = []
     logger.info(

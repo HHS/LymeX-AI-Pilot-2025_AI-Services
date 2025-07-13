@@ -1,7 +1,6 @@
 from typing import List, Optional, TypedDict
 from uuid import uuid4
 
-from loguru import logger
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -16,7 +15,6 @@ from qdrant_client.models import (
 
 from src.environment import environment
 from src.infrastructure.openai import get_openai_client
-from src.modules.index_system_data.summarize_files import FileSummary
 
 client = QdrantClient(
     url=environment.qdrant_url,
@@ -50,21 +48,18 @@ def embed_text(text: str) -> List[float]:
     return resp.data[0].embedding  # List[float]
 
 
-def add_document(filename: str, summary: FileSummary) -> None:
+def add_document(filename: str, summary: str) -> None:
     """
     Add a new document point with filename and summary.
     """
-    vector = embed_text(summary.summary)
-    payload = {
-        "filename": filename,
-        "summary": summary.summary,
-        "product_name": summary.files[0].product_name if summary.files else "Unknown",
-    }
-    logger.info(f"Adding document {filename} with payload: {payload}")
+    vector = embed_text(summary)
     point = PointStruct(
         id=uuid4().int >> 64,
         vector=vector,
-        payload=payload,
+        payload={
+            "filename": filename,
+            "summary": summary,
+        },
     )
     client.upsert(
         collection_name="system_data",
@@ -100,6 +95,8 @@ def get_all_documents() -> List[DocumentFilename]:
         with_payload=True,
         with_vectors=False,
     )
+    print("============================")
+    print(result)
     documents: List[DocumentFilename] = [
         {
             "id": str(point.id),

@@ -1,32 +1,25 @@
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
-import json
 
 from loguru import logger
 from openai import OpenAIError
-from pydantic import BaseModel
 
 from src.infrastructure.openai import get_openai_client
 
 
-class FileProductName(BaseModel):
-    file_name: str
-    product_name: str
-
-
-class FileSummary(BaseModel):
-    files: list[FileProductName]
-    summary: str
-
-
-async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
+async def summarize_files(paths: list[Path], timeout: int = 300) -> str:
     """
-    Upload all PDFs in `paths` to a single OpenAI assistant and return a FileSummary
-    containing a per-file product name (from GPT) and overall summary.
+    Upload all PDFs in `paths` to a single OpenAI assistant and return one concise paragraph
+    summarizing their collective purpose and key features.
+
+    Args:
+        paths: List of Paths to the PDFs.
+        timeout: Seconds to wait before timing out.
+
+    Returns:
+        A single-paragraph summary string covering all uploaded documents.
     """
-    if not paths:
-        return FileSummary(files=[], summary="No documents to summarize.")
     client = get_openai_client()
     uploaded_ids = []
 
@@ -38,21 +31,16 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
         uploaded_ids.append(file_obj.id)
         logger.info(f"Uploaded {path.name} as {file_obj.id}")
 
-    # Create the assistant with clear instructions for JSON output
+    # Create a temporary assistant with combined-summary instructions
     assistant = client.beta.assistants.create(
         instructions=(
-            "You are an FDA subject-matter expert. For each attached PDF device form, "
-            "extract the product name and the file name. Then, provide:\n"
-            "1. A list called 'files', with one object per file containing 'file_name' and 'product_name'.\n"
-            "2. A field called 'summary', which is a concise 5-7 sentence summary focusing on the devices’ overall purpose and key features.\n"
-            "Return your answer strictly as JSON, e.g.:\n"
-            "{\n"
-            '  "files": [\n'
-            '    {"file_name": "example1.pdf", "product_name": "Example Product 1"},\n'
-            '    {"file_name": "example2.pdf", "product_name": "Example Product 2"}\n'
-            "  ],\n"
-            '  "summary": "Combined summary here."\n'
-            "}"
+            "You are an FDA subject-matter expert. For the attached PDF device form, "
+            "provide:\n"
+            "1) A concise 5-7 sentence summary focusing on the device’s overall purpose "
+            "and key functional features.\n"
+            "2) A list of 10–15 general, high-level keywords (avoid numeric values or overly "
+            "specific measurements) that capture the main concepts—these will be used to "
+            "search for similar devices."
         ),
         model="gpt-4o-mini",
         tools=[{"type": "file_search"}],
@@ -71,9 +59,8 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
             thread_id=thread_id,
             role="user",
             content=(
-                "Read all attached PDFs and respond with a JSON including: "
-                "1) 'files' (list of file_name and extracted product_name per file), "
-                "2) 'summary' (overall combined summary)."
+                "Please read all attached PDFs and respond with one concise paragraph summarizing "
+                "their collective purpose and main functional features."
             ),
             attachments=attachments,
         )
@@ -95,28 +82,18 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
                 break
             if status == "failed":
                 raise OpenAIError("Assistant run failed")
-            await asyncio.sleep(5)
+            await asyncio.sleep(2)
         else:
             raise OpenAIError("Assistant run timed out")
 
-        # Retrieve and parse the JSON response
+        # Retrieve and return the single-paragraph response
         messages = client.beta.threads.messages.list(thread_id=thread_id).data
         response = next(
             (m.content[0].text.value for m in messages if m.role == "assistant"), None
         )
         if not response:
             raise OpenAIError("No response from assistant")
-
-        logger.debug(f"Raw assistant response: {response}")
-
-        # Parse JSON from GPT output (strip non-JSON if needed)
-        json_start = response.find("{")
-        json_end = response.rfind("}") + 1
-        json_str = response[json_start:json_end]
-        result = json.loads(json_str)
-
-        files = [FileProductName(**f) for f in result.get("files", [])]
-        summary = result.get("summary", "")
+        summary = response.strip()
 
     finally:
         # Cleanup all resources
@@ -126,4 +103,4 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
         logger.info("Cleanup: deleted all files and assistant.")
 
     logger.info(f"Final summary for [{', '.join([p.name for p in paths])}]: {summary}")
-    return FileSummary(files=files, summary=summary)
+    return summary

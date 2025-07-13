@@ -18,7 +18,7 @@ from src.modules.product_profile.model import (
     AnalyzeProductProfileProgress,
     ProductProfile,
 )
-from src.modules.regulatory_pathway.model import AnalyzeRegulatoryPathwayProgress, RegulatoryPathway
+from src.modules.regulatory_pathway.model import RegulatoryPathway
 from src.modules.test_comparison.model import (
     TestComparison,
 )
@@ -43,7 +43,6 @@ async def init_db() -> None:
             TestComparison,
             ClinicalTrial,
             RegulatoryPathway,
-            AnalyzeRegulatoryPathwayProgress,
         ],
     )
     logger.info(

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from beanie import Document, Indexed, PydanticObjectId
 from pydantic import Field
 from typing import Optional
@@ -25,10 +25,17 @@ class PerformanceTestingDocument(Document, PerformanceTesting):
         return await super().save(*args, **kwargs)
 
 class AnalyzePerformanceTestingProgress(Document):
-    product_id: str = Field(index=True)
-    total_files: int
-    processed_files: int
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    """
+    One document per product - tracks how many performance-testing
+    sub-sections have been processed.
+    """
+    product_id: str = Field(..., index=True)
+
+    total_sections:     int          # how many sections we expect to run
+    processed_sections: int = 0      # incremented after each section
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
     class Settings:
-        name = "analyze_performance_progress"
+        name = "perf_testing_progress"

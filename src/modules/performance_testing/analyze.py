@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import asyncio, json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
@@ -17,10 +17,13 @@ from loguru import logger
 from src.infrastructure.openai import get_openai_client
 from src.infrastructure.redis import redis_client
 
-from src.modules.performance_testing.plan_model import PerformanceTestPlan   # ▲ NEW
-from src.modules.performance_testing.const import TEST_CATALOGUE # ▲ NEW
+from src.modules.performance_testing.plan_model import PerformanceTestPlan  
+from src.modules.performance_testing.const import TEST_CATALOGUE 
 
-from src.modules.performance_testing.model import PerformanceTestingDocument
+from src.modules.performance_testing.model import (
+    PerformanceTestingDocument,
+    AnalyzePerformanceTestingProgress, 
+)
 from src.modules.performance_testing.schema import (
     AnalyticalStudy,
     ComparisonStudy,
@@ -35,6 +38,47 @@ from src.modules.performance_testing.schema import (
     ShelfLife,
     CyberSecurity,
 )
+
+# ─────── Progress helper ──────────────────────────────────────── 
+class AnalyzePTProgress:
+    """Thin wrapper around the AnalyzePerformanceTestingProgress document."""
+
+    def __init__(self) -> None:
+        self.doc: AnalyzePerformanceTestingProgress | None = None
+
+    async def init(self, product_id: str, total_sections: int) -> None:
+        now = datetime.now(timezone.utc)
+        existing = await AnalyzePerformanceTestingProgress.find_one(
+            AnalyzePerformanceTestingProgress.product_id == product_id
+        )
+        if existing:
+            existing.total_sections     = total_sections
+            #existing.processed_files  = 0
+            existing.updated_at       = now
+            self.doc = existing
+        else:
+            self.doc = AnalyzePerformanceTestingProgress(
+                product_id     = product_id,
+                total_sections    = total_sections,
+                #processed_files= 0,
+                updated_at     = now,
+            )
+        await self.doc.save()
+
+    async def tick(self, n: int = 1) -> None:
+        if not self.doc:
+            return
+        self.doc.processed_files += n
+        self.doc.updated_at       = datetime.now(timezone.utc)
+        await self.doc.save()
+
+    async def done(self) -> None:
+        if not self.doc:
+            return
+        self.doc.processed_sections = self.doc.total_sections
+        self.doc.updated_at      = datetime.now(timezone.utc)
+        await self.doc.save()
+
 
 # ───────── helpers ───────────────────────────────────────────
 async def _get_or_create(pid: str) -> PerformanceTestingDocument:
@@ -105,6 +149,7 @@ async def _generic_extract(
     schema_cls,
     attr_name: str,
     prompt: str,
+    progress: AnalyzePTProgress | None = None,
 ):
     attachments = await _maybe_upload_local_file(client, attachments)
     if not attachments:
@@ -183,11 +228,15 @@ async def _generic_extract(
     await doc.save()
     logger.info("✅ Saved {} section for {}", tool_name, product_id)
 
+    if progress:                       # tick AFTER successful save
+        await progress.tick()
+
+
 # ───────── thin wrappers for each questionnaire section ──────
 async def _run_all_sections(client, aid, mapping, pid, atts):
     prompts = {
         "submit_analytical_section": "Extract analytical-performance data. Populate these fields when present:\n"
-        "• product_name • product_identifier • protocol_id • objective • "
+        "• pro  duct_name • product_identifier • protocol_id • objective • "
         "specimen_description • specimen_collection • samples_replicates_sites • "
         "positive_controls • negative_controls • calibration_requirements • "
         "assay_steps • data_analysis_plan • statistical_analysis_plan • "
@@ -247,6 +296,9 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
     if not await lock.acquire(blocking=False):
         logger.warning("Analysis already running for {}", product_id)
         return
+    
+    progress = AnalyzePTProgress()
+
     try:
         # ▲ 1) read plan (may be None)
         plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
@@ -261,7 +313,13 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
                        if required_tests.get(_section_key(k))}
         else:
             mapping = full_mapping          # legacy: run all
+        
+        # initialise progress BEFORE starting extraction
+        await progress.init(product_id, total_sections=len(mapping))
 
         await _run_all_sections(client, aid, mapping, product_id, attachment_ids)
+
+        await progress.done()                   # mark 100 %
+
     finally:
         await lock.release()

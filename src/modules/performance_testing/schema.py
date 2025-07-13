@@ -224,7 +224,7 @@ class Biocompatibility(BaseModel):
 
 class SterilityValidation(BaseModel):
     packaged_as_sterile: Optional[bool] = None
-    methods: List[SterilizationMethod] = Field(default_factory=list)
+    methods: Optional[List[SterilizationMethod]] = None  # making it optional
     sal: Optional[str] = None  # Sterility Assurance Level
     validation_method: Optional[str] = None  # half‑cycle, overkill etc.
     pyrogenicity_test: Optional[bool] = None

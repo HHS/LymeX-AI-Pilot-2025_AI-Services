@@ -16,6 +16,10 @@ from loguru import logger
 
 from src.infrastructure.openai import get_openai_client
 from src.infrastructure.redis import redis_client
+
+from src.modules.performance_testing.plan_model import PerformanceTestPlan   # ▲ NEW
+from src.modules.performance_testing.const import TEST_CATALOGUE # ▲ NEW
+
 from src.modules.performance_testing.model import PerformanceTestingDocument
 from src.modules.performance_testing.schema import (
     AnalyticalStudy,
@@ -152,10 +156,13 @@ async def _generic_extract(
         return
 
     # key normalisation
-    if "attachments" in record:
-        record["attachment_ids"] = [a.get("id") for a in record.pop("attachments")]
-    if "pages" in record:
-        record["page_refs"] = [p.get("page") for p in record.pop("pages")]
+    attachments = record.pop("attachments", None)
+    if attachments:                                   # only if not None / not empty
+        record["attachment_ids"] = [a.get("id") for a in attachments if a]
+
+    pages = record.pop("pages", None)
+    if pages:
+        record["page_refs"] = [p.get("page") for p in pages if p]
 
     try:
         obj = schema_cls.parse_obj(record)
@@ -224,6 +231,16 @@ async def _run_all_sections(client, aid, mapping, pid, atts):
             client, aid, pid, atts, tool, cls, attr, prompts[tool]
         )
 
+# ───── helper used to map tool-names → top-level “section keys” ─────
+def _section_key(tool_name: str) -> str:
+    """
+    "submit_analytical_section"  →  "analytical"
+    "submit_emc_section"         →  "emc_safety"
+    """
+    return (tool_name
+            .removeprefix("submit_")      
+            .removesuffix("_section"))
+
 # ───────── public entry point ───────────────────────────────
 async def analyze_performance_testing(product_id: str, attachment_ids: List[str]):
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
@@ -231,8 +248,20 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
         logger.warning("Analysis already running for {}", product_id)
         return
     try:
+        # ▲ 1) read plan (may be None)
+        plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
+        required_tests = plan_doc.required_tests if plan_doc else None
+
         client = get_openai_client()
-        aid, mapping = await _assistant_id(client)
+        aid, full_mapping = await _assistant_id(client)
+        
+        # ▲ 2) filter mapping to sections present in the plan
+        if required_tests is not None:
+            mapping = {k: v for k, v in full_mapping.items()
+                       if required_tests.get(_section_key(k))}
+        else:
+            mapping = full_mapping          # legacy: run all
+
         await _run_all_sections(client, aid, mapping, product_id, attachment_ids)
     finally:
         await lock.release()

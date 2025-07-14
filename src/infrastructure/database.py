@@ -12,7 +12,8 @@ from src.modules.competitive_analysis.model import (
     AnalyzeCompetitiveAnalysisProgress,
     CompetitiveAnalysis,
 )
-from src.modules.performance_testing.model import PerformanceTesting
+from src.modules.performance_testing.model import AnalyzePerformanceTestingProgress, PerformanceTesting
+from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.product.model import Product
 from src.modules.product_profile.model import (
     AnalyzeProductProfileProgress,
@@ -44,6 +45,8 @@ async def init_db() -> None:
             ClinicalTrial,
             RegulatoryPathway,
             AnalyzeRegulatoryPathwayProgress,
+            PerformanceTestPlan,
+            AnalyzePerformanceTestingProgress,
         ],
     )
     logger.info(

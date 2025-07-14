@@ -52,9 +52,9 @@ async def analyze_competitive_analysis_handler(
 
 @app.post("/analyze-performance-testing")
 async def analyze_performance_testing_handler(
-    performance_testing_id: str,
+    product_id: str,
 ) -> None:
-    await analyze_performance_testing(performance_testing_id)
+    await analyze_performance_testing(product_id)
 
 
 @app.post("/analyze-product-profile")

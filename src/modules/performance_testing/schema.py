@@ -23,6 +23,30 @@ class ModuleStatus(str, enum.Enum):
     COMPLETED = "completed"  # all mandatory items satisfied
     NEEDS_REVIEW = "needs_review"  # AI finished but mandatory gaps remain
 
+class PerformanceTestingSection(str, enum.Enum):
+    """
+    Canonical keys for each sub-section.  Keeping the names **exactly**
+    in sync with the attribute names in PerformanceTestingDocument.
+    """
+    ANALYTICAL       = "analytical"
+    COMPARISON       = "comparison"
+    CLINICAL         = "clinical"
+    ANIMAL_TESTING   = "animal_testing"
+    EMC_SAFETY       = "emc_safety"
+    WIRELESS         = "wireless"
+    SOFTWARE         = "software"
+    INTEROPERABILITY = "interoperability"
+    BIOCOMPATIBILITY = "biocompatibility"
+    STERILITY        = "sterility"
+    SHELF_LIFE       = "shelf_life"
+    CYBERSECURITY    = "cybersecurity"
+
+
+class PerfTestingDocumentResponse(BaseModel):
+    """
+    Tiny DTO used by storage.py to return a single presigned URL.
+    """
+    url: str
 
 
 #------------------------------ Primitive nested objects – reused by multiple sub‑schemas ------------------------------

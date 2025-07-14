@@ -26,6 +26,9 @@ from src.modules.performance_testing.const import TEST_CATALOGUE
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.product_profile.model import ProductProfile  # for rule engine
 
+# we will reuse the storage layer that already exists for Product-Profile
+from src.modules.product_profile.storage  import get_product_profile_documents
+from src.utils.upload_helpers import upload_via_url
 
 # ─────────────────────────────────────────────────────────────
 # 1.  Helper: simple rule-engine (cheap heuristics first)
@@ -37,17 +40,16 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 
     def add(section: str, *codes: str):
         out.setdefault(section, []).extend(codes)
-
-    if profile.device_category == "IVD":
-        add("analytical", "precision", "linearity", "sensitivity")
-        add("clinical", "clin_sens_spec")
+    
+    add("analytical", "precision", "linearity", "sensitivity")
+    add("clinical", "clin_sens_spec")
     if getattr(profile, "contains_software", False):
         add("software", *TEST_CATALOGUE["software"].keys())
         add("cybersecurity", "security_rm_report", "sbom", "threat_model")
     if getattr(profile, "wireless_capability", False):
         add("emc_safety", "iec_60601_1_2")
         add("wireless", "coexistence")
-    # …extend with your own business rules…
+    # …extend with more rules…
 
     return out
 
@@ -91,8 +93,14 @@ async def _poll_function_json(client, thread_id: str, run_id: str,
 # ─────────────────────────────────────────────────────────────
 # 3.  Public entry point
 # ─────────────────────────────────────────────────────────────
-async def create_plan(product_id: str, profile_pdf_id: str) -> None:
-    """Analyse the Product-Profile PDF + rule engine → store PerformanceTestPlan."""
+async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,) -> None:
+    """Analyse the Product-Profile PDF + rule engine → store PerformanceTestPlan.
+
+    1. If `profile_pdf_ids` are supplied (fast-path from UI) - use them.
+    2. Otherwise pull *all* Product-Profile PDFs from MinIO, upload to
+       OpenAI, and use those uploads.
+        
+    """
 
     logger.info("🛠  Generating test-plan for {}", product_id)
 
@@ -137,15 +145,36 @@ async def create_plan(product_id: str, profile_pdf_id: str) -> None:
         ],
     )
 
+    # ── 1)  Ensure we have OpenAI file-IDs for **all** profile PDFs
+    if profile_pdf_ids is None:
+        docs = await get_product_profile_documents(product_id)
+        uploads: list[str] = []
+        for d in docs:
+            try:
+                fid = await upload_via_url(client, d.url, d.file_name)
+                uploads.append(fid)
+            except Exception as exc:
+                logger.warning("PDF upload failed for {}: {}", d.file_name, exc)
+        profile_pdf_ids = uploads
+
+    if not profile_pdf_ids:
+        raise HTTPException(404, "No Product-Profile PDFs found for this product")
+
+    logger.info("⬆️  {} profile PDFs available for planning", len(profile_pdf_ids))
+
     # ── Kick off assistant with the Product-Profile PDF ────
     thread = client.beta.threads.create()
     client.beta.threads.messages.create(
         thread_id=thread.id,
         role="user",
         content="Which *individual* performance tests are mandatory?",
-        attachments=[{"file_id": profile_pdf_id,
-                      "tools":[{"type":"file_search"}]}],
+        attachments=[
+                    {"file_id": fid,
+                      "tools":[{"type":"file_search"}]}
+                    for fid in profile_pdf_ids #[:10]  
+                    ],
     )
+
     run = client.beta.threads.runs.create(thread_id=thread.id,
                                           assistant_id=assistant.id)
 

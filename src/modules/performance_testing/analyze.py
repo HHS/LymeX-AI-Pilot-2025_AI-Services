@@ -10,6 +10,7 @@ import asyncio, json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
+import httpx, asyncio, io
 
 from fastapi import HTTPException
 from loguru import logger
@@ -17,6 +18,11 @@ from loguru import logger
 from src.infrastructure.openai import get_openai_client
 from src.infrastructure.redis import redis_client
 
+from src.modules.performance_testing.storage import (
+    get_performance_testing_documents,          # ← new
+)
+
+from src.utils.parse_openai_json import parse_openai_json
 from src.modules.performance_testing.plan_model import PerformanceTestPlan  
 from src.modules.performance_testing.const import TEST_CATALOGUE 
 
@@ -97,6 +103,45 @@ async def _maybe_upload_local_file(client, ids: List[str]) -> List[str]:
     logger.info("🔄 Using local PDF {} → {}", pdf.name, fid)
     return [fid]
 
+async def _upload_via_url(client, url: str, filename: str) -> str:
+    """
+    Download a doc from MinIO (via pre-signed URL) and push it to
+    OpenAI's /files endpoint. Returns the new file-ID.
+    """
+
+    async with httpx.AsyncClient() as http:
+        r = await http.get(url, timeout=60)
+        r.raise_for_status()
+    bio = io.BytesIO(r.content)
+    bio.name = filename                # important so GPT “sees” the name
+    uploaded = client.files.create(file=bio, purpose="assistants")
+    return uploaded.id
+
+def _robust_json(txt: str) -> dict:
+    """
+    1. plain json.loads()
+    2. strip code-fences / pick first balanced {...}
+    3. final fallback: parse_openai_json()  (removes trailing text, etc.)
+    """
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        # common pattern: ```json … ```
+        if txt.startswith("```"):
+            txt = txt.strip("` \n")
+            if txt.lower().startswith("json"):
+                txt = txt[4:].lstrip()          # drop leading “json”
+        # grab the first {...} block
+        import re, itertools
+        m = re.search(r"\{.*\}", txt, flags=re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass        # fall through
+        # last resort – very tolerant but slower
+        return parse_openai_json(txt)
+
 # ───────── assistant ────────────────────────────────────────
 async def _assistant_id(client) -> str:
     tools = [
@@ -176,7 +221,7 @@ async def _generic_extract(
                 if tc.type == "function" and tc.function.name == tool_name:
                     if record is None:
                         arg = tc.function.arguments
-                        record = json.loads(arg) if isinstance(arg, str) else arg
+                        record = _robust_json(arg) if isinstance(arg, str) else arg
                     outs.append({"tool_call_id": tc.id, "output": "received"})
                 elif tc.type == "file_search":
                     outs.append({"tool_call_id": tc.id, "output": {"data": [{"page": 1, "snippet": ""}]}})
@@ -304,9 +349,27 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
         plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
         required_tests = plan_doc.required_tests if plan_doc else None
 
-        client = get_openai_client()
-        aid, full_mapping = await _assistant_id(client)
+        #client = get_openai_client()
+        #aid, full_mapping = await _assistant_id(client)
         
+        # pull doc list from MinIO if caller didn’t hand us explicit IDs
+        if not attachment_ids:
+            docs     = await get_performance_testing_documents(product_id)
+            client   = get_openai_client()              # need client early
+            uploads  = []
+            for d in docs:
+                try:
+                    fid = await _upload_via_url(client, d.url, d.file_name)
+                    uploads.append(fid)
+                except Exception as exc:
+                    logger.warning("⚠️  upload failed for %s: %s", d.file_name, exc)
+            attachment_ids = uploads
+            logger.info(" %d PDFs uploaded for %s", len(uploads), product_id)
+        else:
+            client = get_openai_client()                # unchanged path
+
+        aid, full_mapping = await _assistant_id(client)
+
         # ▲ 2) filter mapping to sections present in the plan
         if required_tests is not None:
             mapping = {k: v for k, v in full_mapping.items()

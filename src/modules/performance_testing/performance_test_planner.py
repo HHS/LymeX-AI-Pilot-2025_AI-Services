@@ -59,35 +59,48 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 # ─────────────────────────────────────────────────────────────
 async def _poll_function_json(client, thread_id: str, run_id: str,
                               function_name: str) -> dict:
-    """Block until the assistant calls `function_name` and return its arguments."""
+    """Wait until the assistant calls *function_name* and return its arguments."""
     for _ in range(120):
         run = client.beta.threads.runs.retrieve(thread_id=thread_id,
                                                 run_id=run_id)
+
         if run.status == "requires_action":
-            tc_list = run.required_action.submit_tool_outputs.tool_calls
-            outs = []
-            for tc in tc_list:
+            tool_calls = run.required_action.submit_tool_outputs.tool_calls
+
+            outs: list[dict] = []
+            fn_args: dict | None = None
+
+            for tc in tool_calls:
                 if tc.type == "function" and tc.function.name == function_name:
-                    arg = tc.function.arguments
-                    args_dict = json.loads(arg) if isinstance(arg, str) else arg
+                    # --- capture the arguments we actually care about
+                    raw = tc.function.arguments
+                    fn_args = json.loads(raw) if isinstance(raw, str) else raw
                     outs.append({"tool_call_id": tc.id, "output": "received"})
-                    client.beta.threads.runs.submit_tool_outputs(
-                        thread_id=thread_id, run_id=run.id,
-                        tool_outputs=outs)
-                    return args_dict                 # ✅ got it
+
                 elif tc.type == "file_search":
+                    # --- return an empty stub so the assistant knows the call succeeded
                     outs.append({
                         "tool_call_id": tc.id,
                         "output": {"data": [{"page": 1, "snippet": ""}]},
                     })
-                    client.beta.threads.runs.submit_tool_outputs(
-                        thread_id=thread_id, run_id=run.id,
-                        tool_outputs=outs)
+
+            # >>> Submit *all* the collected outputs in one shot
+            if outs:
+                client.beta.threads.runs.submit_tool_outputs(
+                    thread_id=thread_id, run_id=run.id, tool_outputs=outs
+                )
+
+            # Only exit the polling loop after we have answered **every**
+            # outstanding tool call *and* captured the arguments we need
+            if fn_args is not None:
+                return fn_args
+
         elif run.status in ("completed", "failed", "cancelled", "expired"):
             break
+
         await asyncio.sleep(3)
 
-    raise HTTPException(502, f"Assistant did not return {function_name}")
+    raise HTTPException(502, f"Assistant never returned {function_name}")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -171,7 +184,7 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
         attachments=[
                     {"file_id": fid,
                       "tools":[{"type":"file_search"}]}
-                    for fid in profile_pdf_ids #[:10]  
+                    for fid in profile_pdf_ids#[:10]  
                     ],
     )
 

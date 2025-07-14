@@ -6,13 +6,14 @@
 
 from __future__ import annotations
 
-import asyncio, json
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
-import httpx, asyncio, io
-
-from fastapi import HTTPException
+import httpx
+import asyncio
+import io
+import re
 from loguru import logger
 
 from src.infrastructure.openai import get_openai_client
@@ -24,10 +25,9 @@ from src.modules.performance_testing.storage import (
 
 from src.utils.parse_openai_json import parse_openai_json
 from src.modules.performance_testing.plan_model import PerformanceTestPlan  
-from src.modules.performance_testing.const import TEST_CATALOGUE 
 
 from src.modules.performance_testing.model import (
-    PerformanceTestingDocument,
+    PerformanceTesting,
     AnalyzePerformanceTestingProgress, 
 )
 from src.modules.performance_testing.schema import (
@@ -87,10 +87,10 @@ class AnalyzePTProgress:
 
 
 # ───────── helpers ───────────────────────────────────────────
-async def _get_or_create(pid: str) -> PerformanceTestingDocument:
-    doc = await PerformanceTestingDocument.find_one({"product_id": pid})
+async def _get_or_create(pid: str) -> PerformanceTesting:
+    doc = await PerformanceTesting.find_one({"product_id": pid})
     if not doc:
-        doc = PerformanceTestingDocument(product_id=pid)
+        doc = PerformanceTesting(product_id=pid)
         await doc.insert()
     return doc
 
@@ -132,7 +132,6 @@ def _robust_json(txt: str) -> dict:
             if txt.lower().startswith("json"):
                 txt = txt[4:].lstrip()          # drop leading “json”
         # grab the first {...} block
-        import re, itertools
         m = re.search(r"\{.*\}", txt, flags=re.S)
         if m:
             try:
@@ -336,7 +335,7 @@ def _section_key(tool_name: str) -> str:
             .removesuffix("_section"))
 
 # ───────── public entry point ───────────────────────────────
-async def analyze_performance_testing(product_id: str, attachment_ids: List[str]):
+async def analyze_performance_testing(product_id: str, attachment_ids: List[str] = []) -> None:
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
     if not await lock.acquire(blocking=False):
         logger.warning("Analysis already running for {}", product_id)
@@ -380,6 +379,9 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
         # initialise progress BEFORE starting extraction
         await progress.init(product_id, total_sections=len(mapping))
 
+        await PerformanceTesting.find(
+            PerformanceTesting.product_id == product_id
+        ).delete_many()
         await _run_all_sections(client, aid, mapping, product_id, attachment_ids)
 
         await progress.done()                   # mark 100 %

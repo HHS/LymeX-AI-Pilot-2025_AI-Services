@@ -44,9 +44,16 @@ class PerformanceTestingSection(str, enum.Enum):
 
 class PerfTestingDocumentResponse(BaseModel):
     """
-    Tiny DTO used by storage.py to return a single presigned URL.
+    Tiny DTO used by storage.py to return a presigned URL along with metadata.
     """
-    url: str
+    document_name: str = Field(..., description="Name of the performance testing document")
+    file_name: str = Field(..., description="Name of the document")
+    url: str = Field(..., description="URL to access the document")
+    uploaded_at: str = Field(
+        ..., description="Date and time when the document was uploaded"
+    )
+    author: str = Field(..., description="Author of the document")
+    size: int = Field(..., description="Size of the document in bytes")
 
 
 #------------------------------ Primitive nested objects – reused by multiple sub‑schemas ------------------------------

@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio, json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import httpx, asyncio, io
 
 from fastapi import HTTPException
@@ -336,7 +336,10 @@ def _section_key(tool_name: str) -> str:
             .removesuffix("_section"))
 
 # ───────── public entry point ───────────────────────────────
-async def analyze_performance_testing(product_id: str, attachment_ids: List[str]):
+async def analyze_performance_testing(
+        product_id: str,
+        attachment_ids: Optional[List[str]] = None,   # default = None
+    ) -> None:
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
     if not await lock.acquire(blocking=False):
         logger.warning("Analysis already running for {}", product_id)

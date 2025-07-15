@@ -58,7 +58,7 @@ def _decode_info(stem: str) -> dict[str, str]:
 
 # ─────────────────── folder helpers ──────────────────────────
 def _perf_root(product_id: str) -> str:
-    return f"{get_product_folder(product_id)}/performance_testing"
+    return f"{get_product_folder(product_id)}/performance-testing"
 
 # ─────────────────── CRUD helpers  ───────────────────────────
 async def get_performance_testing_documents(product_id: str) -> list[PerfTestingDocumentResponse]:
@@ -78,7 +78,7 @@ async def _obj_to_response(obj: Object) -> PerfTestingDocumentResponse:
         author        = info["author"],
         url           = await generate_get_object_presigned_url(obj.object_name),
         uploaded_at   = obj.last_modified.isoformat(),
-        content_type  = obj.content_type or mimetypes.guess_type(info["file_name"])[0] or "application/octet-stream",
+        #content_type  = obj.content_type or mimetypes.guess_type(info["file_name"])[0] or "application/octet-stream",
         size          = obj.size,
     )
 

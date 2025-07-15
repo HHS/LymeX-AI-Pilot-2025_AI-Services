@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import httpx
 import asyncio
 import io
@@ -24,7 +24,8 @@ from src.modules.performance_testing.storage import (
 )
 
 from src.utils.parse_openai_json import parse_openai_json
-from src.modules.performance_testing.plan_model import PerformanceTestPlan  
+from src.modules.performance_testing.plan_model import PerformanceTestPlan
+from src.modules.performance_testing.performance_test_planner import create_plan 
 
 from src.modules.performance_testing.model import (
     PerformanceTesting,
@@ -335,7 +336,7 @@ def _section_key(tool_name: str) -> str:
             .removesuffix("_section"))
 
 # ───────── public entry point ───────────────────────────────
-async def analyze_performance_testing(product_id: str, attachment_ids: List[str] = []) -> None:
+async def analyze_performance_testing(product_id: str, attachment_ids: Optional[List[str]] = None,) -> int:
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
     if not await lock.acquire(blocking=False):
         logger.warning("Analysis already running for {}", product_id)
@@ -343,9 +344,16 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
     
     progress = AnalyzePTProgress()
 
+    num_files = -1
+
     try:
         # ▲ 1) read plan (may be None)
         plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
+        if plan_doc is None:
+            await create_plan(product_id)               # generate test plan on the fly
+            plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
+            #print("📝 NEW test‑plan:\n", plan_doc.model_dump_json(indent=2))
+        
         required_tests = plan_doc.required_tests if plan_doc else None
 
         #client = get_openai_client()
@@ -354,8 +362,18 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
         # pull doc list from MinIO if caller didn’t hand us explicit IDs
         if not attachment_ids:
             docs     = await get_performance_testing_documents(product_id)
+
+            # Return None cleanly when no files are present
+            if not docs:                       # len(docs) == 0
+                logger.warning(
+                    f"No performance-testing documents found for {product_id}; "
+                    "AI processing can’t be done."
+                )
+                return None                    # signals None to the caller
+
             client   = get_openai_client()              # need client early
             uploads  = []
+            num_files = len(docs)     # pass the number of documents
             for d in docs:
                 try:
                     fid = await _upload_via_url(client, d.url, d.file_name)
@@ -365,6 +383,7 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
             attachment_ids = uploads
             logger.info(" %d PDFs uploaded for %s", len(uploads), product_id)
         else:
+            num_files = len(attachment_ids)     # pass the number of documents based on their attachment_ids
             client = get_openai_client()                # unchanged path
 
         aid, full_mapping = await _assistant_id(client)
@@ -388,3 +407,5 @@ async def analyze_performance_testing(product_id: str, attachment_ids: List[str]
 
     finally:
         await lock.release()
+
+    return num_files

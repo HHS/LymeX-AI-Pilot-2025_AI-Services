@@ -89,11 +89,13 @@ async def create_competitive_analysis(
         "'competitor': CompetitiveAnalysisDetail. "
         "Do not add any extra summary or commentary outside the required fields."
         "Ignore two fields: 'is_ai_generated' and 'use_system_data'."
+        "Field 'product_name' is the name of the competitor document, not the product profile."
+        "confidence_score should be from 0 to 1, where 1 is very confident and 0 is not confident at all."
     )
 
     logger.info("Calling OpenAI chat completion for competitive analysis")
     completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1",
         messages=[
             {"role": "system", "content": instructions},
             {
@@ -123,6 +125,11 @@ async def create_competitive_analysis(
     args_json = completion.choices[0].message.function_call.arguments
     logger.info(f"Received competitive analysis response from OpenAI: {args_json}")
     analysis = CompetitiveAnalysis.model_validate_json(args_json)
+    
+    if analysis.confidence_score > 1:
+        analysis.confidence_score = analysis.confidence_score / 100.0
+
+
     logger.info(
         f"Competitive analysis parsed successfully for competitor {competitor_file_name}"
     )

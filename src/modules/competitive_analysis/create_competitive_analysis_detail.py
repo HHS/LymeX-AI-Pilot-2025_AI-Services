@@ -33,7 +33,7 @@ def get_or_create_fda_assistant(client, assistant_name="FDA Extractor"):
             "Return a JSON object with all the fields."
         ),
         tools=[{"type": "file_search"}],
-        model="gpt-4.1",
+        model="gpt-4o-mini",
     )
     return assistant.id
 

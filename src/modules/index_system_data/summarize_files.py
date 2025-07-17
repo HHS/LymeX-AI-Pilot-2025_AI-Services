@@ -54,7 +54,7 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
             '  "summary": "Combined summary here."\n'
             "}"
         ),
-        model="gpt-4.1",
+        model="gpt-4o-mini",
         tools=[{"type": "file_search"}],
     )
     assistant_id = assistant.id

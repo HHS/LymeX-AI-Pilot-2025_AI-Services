@@ -15,54 +15,54 @@ class ProductProfile(Document):
     product_id: str
     product_trade_name: str
     model_number: Optional[str] = None
-    reference_number: str
-    description: str
+    reference_number: str = "Not Available"
+    description: str = "Not Available"
     generic_name: Optional[str] = None
 
     regulatory_pathway: Optional[str] = None  # now optional if absent
-    regulatory_classifications: list[RegulatoryClassification]
+    regulatory_classifications: list[RegulatoryClassification] = []
     product_code: Optional[str] = None
     regulation_number: Optional[str] = None
 
-    device_characteristics: list[DeviceCharacteristics]
-    performance_characteristics: list[PerformanceCharacteristics]
-    device_description: str
-    features: list[Feature]
-    claims: list[str]
-    conflict_alerts: list[str]
-    test_principle: str
-    comparative_claims: list[str]
-    fda_cleared: bool | None
-    fda_approved: bool | None
-    ce_marked: bool | None
+    device_characteristics: list[DeviceCharacteristics] = []
+    performance_characteristics: list[PerformanceCharacteristics] = []
+    device_description: str = "Not Available"
+    features: list[Feature] = []
+    claims: list[str] = []
+    conflict_alerts: list[str] = []
+    test_principle: str = "Not Available"
+    comparative_claims: list[str] = []
+    fda_cleared: bool | None = None
+    fda_approved: bool | None = None
+    ce_marked: bool | None = None
 
-    device_ifu_description: str
-    instructions_for_use: list[str] = Field(default_factory=list)
+    device_ifu_description: str = 'Not available'
+    instructions_for_use: list[str] = []
 
     storage_conditions: Optional[str] = None
     shelf_life: Optional[str] = None
     sterility_status: Optional[str] = None
 
-    warnings: list[str] = Field(default_factory=list)
-    limitations: list[str] = Field(default_factory=list)
-    contraindications: list[str] = Field(default_factory=list)
+    warnings: list[str] = []
+    limitations: list[str] = []
+    contraindications: list[str] = []
 
-    confidence_score: float
-    sources: list[str]
-    performance: Performance
+    confidence_score: float = 0.0
+    sources: list[str] = []
+    performance: Performance = None
     price: int = 0
-    instructions: list[str]
-    type_of_use: str
+    instructions: list[str] = []
+    type_of_use: str = "Not Available"
 
     # YAML-derived fields
-    device_type: str
-    disease_condition: str
-    patient_population: str
-    use_environment: str
-    combination_use: str
-    life_supporting: str
-    specimen_type: str
-    special_attributes: str
+    device_type: str = "Not Available"
+    disease_condition: str = "Not Available"
+    patient_population: str = "Not Available"
+    use_environment: str = "Not Available"
+    combination_use: str = "Not Available"
+    life_supporting: str = "Not Available"
+    specimen_type: str = "Not Available"
+    special_attributes: str = "Not Available"
 
     class Settings:
         name = "product_profile"

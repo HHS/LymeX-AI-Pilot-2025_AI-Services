@@ -115,7 +115,7 @@ async def analyze_product_profile(product_id: str) -> None:
                 "step-by-step instructions-for-use list. Use the literal string "
                 "'not available' for any field you cannot confidently extract."
             ),
-            model="gpt-4.1",
+            model="gpt-4o-mini",
             tools=[
                 {"type": "file_search"},
                 {"type": "function", "function": {

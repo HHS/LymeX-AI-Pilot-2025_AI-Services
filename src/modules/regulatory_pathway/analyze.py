@@ -128,7 +128,7 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
 
         assistant = client.beta.assistants.create(
             instructions=build_regulatory_pathway_instructions(RegulatoryPathway),
-            model="gpt-4.1",
+            model="gpt-4o-mini",
             tools=[
                 {"type": "file_search"},
                 {

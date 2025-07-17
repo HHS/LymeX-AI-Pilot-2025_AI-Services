@@ -24,8 +24,8 @@ class ProductProfile(Document):
     product_code: Optional[str] = None
     regulation_number: Optional[str] = None
 
-    device_characteristics: list[DeviceCharacteristics] = []
-    performance_characteristics: list[PerformanceCharacteristics] = []
+    # device_characteristics: list[DeviceCharacteristics] = []
+    # performance_characteristics: list[PerformanceCharacteristics] = []
     device_description: str = "Not Available"
     features: list[Feature] = []
     claims: list[str] = []
@@ -45,11 +45,11 @@ class ProductProfile(Document):
 
     warnings: list[str] = []
     limitations: list[str] = []
-    contraindications: list[str] = []
+    # contraindications: list[str] = []
 
     confidence_score: float = 0.0
     sources: list[str] = []
-    performance: Performance = None
+    # performance: Performance = None
     price: int = 0
     instructions: list[str] = []
     type_of_use: str = "Not Available"

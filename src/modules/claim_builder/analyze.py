@@ -127,7 +127,7 @@ async def analyze_claim_builder(product_id: str) -> None:
 
         assistant = client.beta.assistants.create(
             instructions=build_claim_builder_instructions(ClaimBuilder),
-            model="gpt-4.1",
+            model="gpt-4o-mini",
             tools=[
                 {"type": "file_search"},
                 {

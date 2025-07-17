@@ -126,7 +126,7 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
 
     assistant = client.beta.assistants.create(
         name="Performance Test Planner",
-        model="gpt-4.1",
+        model="gpt-4o-mini",
         instructions=(
              "You are an FDA regulatory strategist.  ALWAYS respond by calling the "
         "function **return_test_plan** with *one* argument named "

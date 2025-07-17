@@ -21,6 +21,7 @@ from typing import Dict, List
 from loguru import logger
 from fastapi import HTTPException
 
+from src.environment import environment
 from src.infrastructure.openai import get_openai_client
 from src.modules.performance_testing.const import TEST_CATALOGUE
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
@@ -126,7 +127,7 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
 
     assistant = client.beta.assistants.create(
         name="Performance Test Planner",
-        model="gpt-4o-mini",
+        model=environment.openai_model,
         instructions=(
              "You are an FDA regulatory strategist.  ALWAYS respond by calling the "
         "function **return_test_plan** with *one* argument named "

@@ -19,7 +19,8 @@ class Environment(BaseSettings):
     qdrant_url: str = Field("http://localhost")
     qdrant_port: int = Field(6333)
 
-    openai_api_key: str = Field(..., env="OPENAI_API_KEY")
+    openai_api_key: str = Field(...)
+    openai_model: str = Field("gpt-4.1")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

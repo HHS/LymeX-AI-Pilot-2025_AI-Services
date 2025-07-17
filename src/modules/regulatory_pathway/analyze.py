@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from fastapi import HTTPException
 import httpx
+from src.environment import environment
 from loguru import logger
 from pydantic import BaseModel
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
@@ -128,7 +129,7 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
 
         assistant = client.beta.assistants.create(
             instructions=build_regulatory_pathway_instructions(RegulatoryPathway),
-            model="gpt-4o-mini",
+            model=environment.openai_model,
             tools=[
                 {"type": "file_search"},
                 {

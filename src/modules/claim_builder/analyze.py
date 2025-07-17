@@ -6,6 +6,7 @@ import httpx
 from loguru import logger
 from pydantic import BaseModel
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
+from src.environment import environment
 from src.infrastructure.openai import get_openai_client
 from src.modules.claim_builder.model import AnalyzeClaimBuilderProgress, ClaimBuilder
 from src.infrastructure.redis import redis_client
@@ -127,7 +128,7 @@ async def analyze_claim_builder(product_id: str) -> None:
 
         assistant = client.beta.assistants.create(
             instructions=build_claim_builder_instructions(ClaimBuilder),
-            model="gpt-4o-mini",
+            model=environment.openai_model,
             tools=[
                 {"type": "file_search"},
                 {

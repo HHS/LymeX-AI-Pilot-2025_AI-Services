@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import time
 
+from src.environment import environment
 from pydantic import BaseModel, ValidationError
 from src.infrastructure.openai import get_openai_client
 from src.modules.competitive_analysis.schema import CompetitiveAnalysisDetail
@@ -33,7 +34,7 @@ def get_or_create_fda_assistant(client, assistant_name="FDA Extractor"):
             "Return a JSON object with all the fields."
         ),
         tools=[{"type": "file_search"}],
-        model="gpt-4o-mini",
+        model=environment.openai_model,
     )
     return assistant.id
 

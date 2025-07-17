@@ -5,6 +5,7 @@ import httpx
 from fastapi import HTTPException
 from loguru import logger
 from src.infrastructure.openai import get_openai_client
+from src.environment import environment
 
 from src.modules.competitive_analysis.model import CompetitiveAnalysis
 from src.modules.product_profile.schema import ProductProfileDocumentResponse
@@ -95,7 +96,7 @@ async def create_competitive_analysis(
 
     logger.info("Calling OpenAI chat completion for competitive analysis")
     completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=environment.openai_model,
         messages=[
             {"role": "system", "content": instructions},
             {

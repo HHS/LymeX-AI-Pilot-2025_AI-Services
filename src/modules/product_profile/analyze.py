@@ -1,8 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 from io import BytesIO
-from uuid import uuid4
-
+from src.environment import environment
 import yaml
 import os
 
@@ -115,7 +114,7 @@ async def analyze_product_profile(product_id: str) -> None:
                 "step-by-step instructions-for-use list. Use the literal string "
                 "'not available' for any field you cannot confidently extract."
             ),
-            model="gpt-4o-mini",
+            model=environment.openai_model,
             tools=[
                 {"type": "file_search"},
                 {"type": "function", "function": {

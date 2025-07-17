@@ -1,0 +1,17 @@
+SUPPORTED_FILE_EXTENSIONS = [
+    ".pdf",
+    ".txt",
+    ".docx",
+    ".md",
+    ".csv",
+    ".json",
+    ".xlsx",
+    ".xls",
+    ".pptx",
+    ".ppt",
+    ".odt",
+    ".rtf",
+    ".xml",
+    ".html",
+    ".htm",
+]

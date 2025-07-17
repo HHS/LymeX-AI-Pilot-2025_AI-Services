@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import json
 
+from src.environment import environment
 from loguru import logger
 from openai import OpenAIError
 from pydantic import BaseModel
@@ -54,7 +55,7 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
             '  "summary": "Combined summary here."\n'
             "}"
         ),
-        model="gpt-4o-mini",
+        model=environment.openai_model,
         tools=[{"type": "file_search"}],
     )
     assistant_id = assistant.id

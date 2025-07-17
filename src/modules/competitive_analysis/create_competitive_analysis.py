@@ -95,7 +95,7 @@ async def create_competitive_analysis(
 
     logger.info("Calling OpenAI chat completion for competitive analysis")
     completion = client.chat.completions.create(
-        model="gpt-4.1",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": instructions},
             {

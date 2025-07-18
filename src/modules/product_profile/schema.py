@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Optional, List
 from pydantic import BaseModel, Field
+from src.utils.base import SafeBase
 
 
 class ClassificationSource(str, Enum):
@@ -10,18 +11,18 @@ class ClassificationSource(str, Enum):
     NOT_AVAILABLE = "not available"
 
 
-class RegulatoryClassification(BaseModel):
-    organization: str
-    classification: str
+class RegulatoryClassification(SafeBase):
+    organization: str = Field("Not Available", description="Organization name")
+    classification: str = Field("Not Available", description="Classification")
     source: ClassificationSource = ClassificationSource.NOT_AVAILABLE
     product_code: Optional[str] = None
     regulation_number: Optional[str] = None
 
 
-class DeviceCharacteristics(BaseModel):
-    device_description: str
-    principle_of_operation: str
-    interpretation_of_results: str
+class DeviceCharacteristics(SafeBase):
+    device_description: str = Field("Not Available", description="Device Description")
+    principle_of_operation: str = Field("Not Available", description="Principle of Operation")
+    interpretation_of_results: str = Field("Not Available", description="Interpretation of Results")
     # generic_name: Optional[str] = None
     storage_conditions: Optional[str] = None
     shelf_life: Optional[str] = None
@@ -31,27 +32,27 @@ class DeviceCharacteristics(BaseModel):
     animal_derived_materials: Optional[str] = None
 
 
-class PerformanceCharacteristics(BaseModel):
-    analytical_sensitivity: str
-    analytical_specificity: str
-    precision_reproducibility: str
-    clinical_performance: str
-    performance_summary: str
-    performance_references: list[str]
+class PerformanceCharacteristics(SafeBase):
+    analytical_sensitivity: str = Field("Not Available", description="Analytical Senstivity")
+    analytical_specificity: str = Field("Not Available", description="Analytical Specificity")
+    precision_reproducibility: str = Field("Not Available", description="APrecision Reproducibility")
+    clinical_performance: str = Field("Not Available", description="Clinical Performance")
+    performance_summary: str = Field("Not Available", description="Overall Performance Summary")
+    performance_references: list[str] = Field(default_factory=list, description="Performance References")
 
 
-class Feature(BaseModel):
-    name: str
-    description: str
+class Feature(SafeBase):
+    name: str = Field("Not Available", description="Name")
+    description: str = Field("Not Available", description="Description")
     icon: str | None = Field(None, description="Icon representing the feature")
 
 
-class Performance(BaseModel):
-    speed: int
-    reliability: int
+class Performance(SafeBase):
+    speed: int = Field(-1, description="Speed")
+    reliability: int = Field(-1, description="Reliability")
 
 
-class ProductProfileDocumentResponse(BaseModel):
+class ProductProfileDocumentResponse(SafeBase):
     document_name: str = Field(..., description="Name of the product profile document")
     file_name: str = Field(..., description="Name of the document")
     url: str = Field(..., description="URL to access the document")
@@ -63,7 +64,7 @@ class ProductProfileDocumentResponse(BaseModel):
 
 
 # Purely for OpenAI function calling (fields from YAML)
-class ProductProfileFunctionSchema(BaseModel):
+class ProductProfileFunctionSchema(SafeBase):
     device_type: str
     disease_condition: str
     patient_population: str
@@ -86,7 +87,7 @@ class ProductProfileFunctionSchema(BaseModel):
     )
 
 
-class ProductProfileSchema(BaseModel):
+class ProductProfileSchema(SafeBase):
     product_id: str = Field(..., description="Unique identifier for the product")
     product_trade_name: str = Field(
         "Not Available", description="Trade name of the product"

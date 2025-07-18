@@ -5,9 +5,9 @@ import httpx
 from fastapi import HTTPException
 from loguru import logger
 from src.infrastructure.openai import get_openai_client
-from src.environment import environment
 
 from src.modules.competitive_analysis.model import CompetitiveAnalysis
+from src.modules.competitive_analysis.model import CompetitiveAnalysis1
 from src.modules.product_profile.schema import ProductProfileDocumentResponse
 
 
@@ -72,7 +72,7 @@ async def create_competitive_analysis(
     func_spec = {
         "name": "create_competitive_analysis",
         "description": "Produce a JSON object matching the CompetitiveAnalysis schema",
-        "parameters": CompetitiveAnalysis.model_json_schema(),
+        "parameters": CompetitiveAnalysis1.model_json_schema(),
     }
 
     instructions = (
@@ -85,17 +85,15 @@ async def create_competitive_analysis(
         "Include all relevant descriptions, specifications, and values found—do not leave out any part of the source content for each field. "
         "If a field cannot be determined from the provided documents, set its value to 'Not Available'. "
         "Do not use null values or leave any field blank. "
-        "Return your response as a CompetitiveAnalysis object containing: "
+        "Return your response as a CompetitiveAnalysis1 object containing: "
         "'your_product': CompetitiveAnalysisDetail, "
-        "'competitor': CompetitiveAnalysisDetail. "
         "Do not add any extra summary or commentary outside the required fields."
-        "Ignore two fields: 'is_ai_generated' and 'use_system_data'."
-        "confidence_score should be from 0 to 1, where 1 is very confident and 0 is not confident at all."
     )
+
 
     logger.info("Calling OpenAI chat completion for competitive analysis")
     completion = client.chat.completions.create(
-        # model=environment.openai_model,
+        # model="gpt-4o-mini",
         model="gpt-4.1",
         messages=[
             {"role": "system", "content": instructions},
@@ -106,12 +104,6 @@ async def create_competitive_analysis(
                         {"file_name": name, "file_id": fid}
                         for name, fid in zip(
                             product_profile_file_names, product_profile_uploaded_ids
-                        )
-                    ],
-                    "competitor": [
-                        {"file_name": name.name, "file_id": fid}
-                        for name, fid in zip(
-                            competitor_document_paths, competitor_uploaded_ids
                         )
                     ],
                 }),
@@ -125,10 +117,12 @@ async def create_competitive_analysis(
     # — parse the returned JSON into your model —
     args_json = completion.choices[0].message.function_call.arguments
     logger.info(f"Received competitive analysis response from OpenAI: {args_json}")
-    analysis = CompetitiveAnalysis.model_validate_json(args_json)
+    analysis = CompetitiveAnalysis1.model_validate_json(args_json)
+
+
     
-    if analysis.confidence_score > 1:
-        analysis.confidence_score = analysis.confidence_score / 100.0
+    # if analysis.confidence_score > 1:
+    #     analysis.confidence_score = analysis.confidence_score / 100.0
 
 
     logger.info(

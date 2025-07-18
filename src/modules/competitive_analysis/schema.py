@@ -36,7 +36,8 @@ class CompetitiveAnalysisDetail(BaseModel):
     k_number: str = Field(
         "Not Available", description="FDA 510(k) K Number for the device, if available."
     )
-    product_name: str = Field("Not Available", description="Product Name or Device Name")
+    product_name: str = Field("Not Available", description="The name of the medical device or product. It is NOT a number like K043813 "
+                    "It should be Trade/Device Name, for example, iDart Lyme IgG ImmunoBlot Kit")
     regulatory_pathway: str = Field("Not Available", description="Regulatory Pathway")
     product_code: str = Field(
         "Not Available",

@@ -45,6 +45,16 @@ class CompetitiveAnalysis(Document):
             PydanticObjectId: str,
         }
 
+class CompetitiveAnalysis1(Document):
+    your_product_summary: CompetitiveAnalysisCompareSummary
+    class Settings:
+        name = "competitive_analysis"
+
+    class Config:
+        json_encoders = {
+            PydanticObjectId: str,
+        }
+
 
 class AnalyzeCompetitiveAnalysisProgress(Document):
     reference_product_id: str

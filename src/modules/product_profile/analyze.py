@@ -1,26 +1,28 @@
-import asyncio
 from datetime import datetime, timezone
-from io import BytesIO
-from src.environment import environment
+from pathlib import Path
 import yaml
 import os
 
 import httpx
 from fastapi import HTTPException
 from loguru import logger
-from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
-from src.infrastructure.openai import get_openai_client
 from src.infrastructure.redis import redis_client
-from src.modules.product_profile.model import ProductProfile, AnalyzeProductProfileProgress
+from src.modules.product_profile.model import (
+    ProductProfile,
+    AnalyzeProductProfileProgress,
+)
+from src.modules.product_profile.schema import ProductProfileSchema
 from src.modules.product_profile.storage import get_product_profile_documents
-from src.utils.parse_openai_json import parse_openai_json
+from src.utils.extract_documents_data import extract_documents_data
+
 
 def load_questionnaire_text():
     path = os.path.join("src", "resources", "device_description_questionnaire.yaml")
     with open(path, "r") as f:
         items = yaml.safe_load(f)
     return "\n".join(f"{item['id']}: {item['question']}" for item in items)
+
 
 class AnalyzeProgress:
     def __init__(self):
@@ -61,6 +63,67 @@ class AnalyzeProgress:
         await self.progress.save()
         logger.info(f"Progress complete for {self.progress.product_id}")
 
+
+async def do_analyze_product_profile(product_id: str) -> None:
+    docs = await get_product_profile_documents(product_id)
+    total = len(docs)
+    progress = AnalyzeProgress()
+    await progress.initialize(product_id, total)
+
+    doc_paths: list[Path] = []
+
+    # Upload each document with retry
+    for doc in docs:
+        async with httpx.AsyncClient() as http_client:
+            doc_path = Path("/tmp") / "docs_nois2" / doc.file_name
+            doc_paths.append(doc_path)
+            doc_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(doc_path, "wb") as f:
+                response = await http_client.get(doc.url)
+                f.write(response.content)
+
+    instruction = (
+        "You are an FDA expert. Use the uploaded PDF files to extract a complete "
+        "product profile. Return **only** valid JSON that matches the "
+        "ProductProfile schema exactly (no explanations or bullet points). "
+        "Required fields now include trade name, model number, generic name, "
+        "FDA product code, CFR regulation number, storage conditions, shelf-life, "
+        "sterility status, warnings, limitations, contraindications, and a "
+        "step-by-step instructions-for-use list. Use the literal string "
+        "'not available' for any field you cannot confidently extract."
+    )
+    questionnaire_text = load_questionnaire_text()
+    question = (
+        "Please extract a complete product profile using all uploaded FDA PDF "
+        "documents. In particular:\n"
+        "• Determine the FDA regulatory pathway ('510(k)', 'De Novo', or 'Premarket Approval (PMA)').\n"
+        "• Capture **trade name, model number, and generic name**.\n"
+        "• Capture **FDA product code** and **21 CFR regulation number**.\n"
+        "• Capture storage conditions, shelf-life, and sterility status if present.\n"
+        "• List any warnings, limitations, or contraindications that appear in labeling.\n"
+        "• Any software present, single-use or reprocessed single use device "
+        "are there any animal-derived materials in the product \n"
+        "• Provide a **step-by-step instructions-for-use** list.\n"
+        "If an answer is not found, return the field value as 'not available'.\n\n"
+        f"{questionnaire_text}"
+    )
+
+    result = await extract_documents_data(
+        documents=doc_paths,
+        system_instruction=instruction,
+        user_question=question,
+        model_class=ProductProfileSchema,
+    )
+
+    # Save profile
+    await ProductProfile.find(ProductProfile.product_id == product_id).delete_many()
+    record = {**result.model_dump(), "product_id": product_id}
+    await ProductProfile(**record).save()
+
+    await progress.complete()
+    logger.success(f"Saved product profile for {product_id}")
+
+
 async def analyze_product_profile(product_id: str) -> None:
     lock = redis_client.lock(f"analyze_lock:{product_id}", timeout=60)
     if not await lock.acquire(blocking=False):
@@ -68,141 +131,7 @@ async def analyze_product_profile(product_id: str) -> None:
         return
 
     try:
-        docs = await get_product_profile_documents(product_id)
-        total = len(docs)
-        progress = AnalyzeProgress()
-        await progress.initialize(product_id, total)
-
-        client = get_openai_client()
-        file_ids: list[str] = []
-
-        # Upload each document with retry
-        for doc in docs:
-            upload_id = None
-            async for attempt in AsyncRetrying(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10)):
-                with attempt:
-                    async with httpx.AsyncClient() as http:
-                        resp = await http.get(doc.url)
-                        resp.raise_for_status()
-                    bio = BytesIO(resp.content)
-                    bio.name = doc.file_name
-                    uploaded = client.files.create(file=bio, purpose="assistants")
-                    upload_id = uploaded.id
-            if not upload_id:
-                logger.error(f"Failed to upload {doc.file_name}")
-                raise HTTPException(502, f"Upload failed for {doc.file_name}")
-            file_ids.append(upload_id)
-            await progress.increment()
-            logger.info(f"Uploaded {doc.file_name} as {upload_id}")
-
-        # load product profile questionaire 
-        questionnaire_text = load_questionnaire_text()
-        
-        # Build schema for function tool
-        function_schema = ProductProfile.model_json_schema(by_alias=True)
-
-        # Create an assistant with file_search and function tool
-        assistant = client.beta.assistants.create(
-            #instructions="You are an FDA expert. Use provided PDF files to extract a complete product profile.",
-            instructions=(
-                "You are an FDA expert. Use the uploaded PDF files to extract a complete "
-                "product profile. Return **only** valid JSON that matches the "
-                "ProductProfile schema exactly (no explanations or bullet points). "
-                "Required fields now include trade name, model number, generic name, "
-                "FDA product code, CFR regulation number, storage conditions, shelf-life, "
-                "sterility status, warnings, limitations, contraindications, and a "    
-                "step-by-step instructions-for-use list. Use the literal string "
-                "'not available' for any field you cannot confidently extract."
-            ),
-            model=environment.openai_model,
-            tools=[
-                {"type": "file_search"},
-                {"type": "function", "function": {
-                    "name": "answer_about_pdf",
-                    "description": "Return a JSON matching ProductProfile schema.",
-                    "parameters": function_schema,
-                }}
-            ],
-        )
-
-        # Start a thread and send user question
-        thread = client.beta.threads.create()
-        QUESTION = (
-            "Please extract a complete product profile using all uploaded FDA PDF "
-            "documents. In particular:\n"
-            "• Determine the FDA regulatory pathway ('510(k)', 'De Novo', or 'Premarket Approval (PMA)').\n"
-            "• Capture **trade name, model number, and generic name**.\n"
-            "• Capture **FDA product code** and **21 CFR regulation number**.\n"
-            "• Capture storage conditions, shelf-life, and sterility status if present.\n"
-            "• List any warnings, limitations, or contraindications that appear in labeling.\n"
-            "• Any software present, single-use or reprocessed single use device "
-            "are there any animal-derived materials in the product \n"
-            "• Provide a **step-by-step instructions-for-use** list.\n"
-            "If an answer is not found, return the field value as 'not available'.\n\n"
-            f"{questionnaire_text}"
-        )
-
-        """QUESTION = (
-            "Please read all uploaded PDF documents and return a JSON object matching the ProductProfile schema. "
-            "Only include fields present in schema."
-        )"""
-        
-        client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=QUESTION,
-            attachments=[{"file_id": fid, "tools": [{"type": "file_search"}]} for fid in file_ids],
-        )
-
-        # Run the assistant and poll for completion
-        run = client.beta.threads.runs.create(thread_id=thread.id, assistant_id=assistant.id)
-        for _ in range(60):  # up to 5 minutes
-            run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
-            if run.status == "completed":
-                break
-            if run.status == "failed":
-                logger.error(f"Assistant run failed: {run.error}")
-                raise HTTPException(502, "Assistant failed")
-            if run.status == "requires_action":
-                tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                tool_outputs = [{"tool_call_id": tc.id, "output": ""} for tc in tool_calls]
-                run = client.beta.threads.runs.submit_tool_outputs(
-                    thread_id=thread.id,
-                    run_id=run.id,
-                    tool_outputs=tool_outputs,
-                )
-            await asyncio.sleep(5)
-
-        # Retrieve assistant message
-        msgs = client.beta.threads.messages.list(thread_id=thread.id)
-        result_text = None
-        for msg in msgs.data:
-            if msg.role == "assistant":
-                result_text = msg.content[0].text.value
-                break
-        if not result_text:
-            raise HTTPException(502, "No assistant response found.")
-
-        profile = parse_openai_json(result_text)
-
-        # Cleanup assistant and files
-        try:
-            client.beta.assistants.delete(assistant.id)
-        except Exception:
-            pass
-        for fid in file_ids:
-            try:
-                client.files.delete(fid)
-            except Exception:
-                pass
-
-        # Save profile
-        await ProductProfile.find(ProductProfile.product_id == product_id).delete_many()
-        record = {**profile, "product_id": product_id}
-        await ProductProfile(**record).save()
-
-        await progress.complete()
-        logger.success(f"Saved product profile for {product_id}")
+        await do_analyze_product_profile(product_id)
 
     except Exception as exc:
         logger.error(f"Error analyzing {product_id}: {exc}")

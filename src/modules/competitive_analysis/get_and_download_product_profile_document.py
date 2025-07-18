@@ -18,13 +18,21 @@ async def get_and_download_product_profile_document(
     for doc in docs:
         logger.info(f"Downloading product profile document from {doc.url}")
         async with httpx.AsyncClient() as client:
-            response = await client.get(doc.url)
-            temp_path = Path(f"/tmp/product_profile/{doc.file_name}")
-            temp_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(temp_path, "wb") as f:
-                f.write(response.content)
-            logger.info(f"Saved product profile document to {temp_path}")
-            doc_paths.append(temp_path)
+            for attempt in range(3):
+                try:
+                    response = await client.get(doc.url)
+                    response.raise_for_status()
+                    temp_path = Path(f"/tmp/product_profile/{doc.file_name}")
+                    temp_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(temp_path, "wb") as f:
+                        f.write(response.content)
+                    logger.info(f"Saved product profile document to {temp_path}")
+                    doc_paths.append(temp_path)
+                    break
+                except Exception as e:
+                    logger.warning(f"Attempt {attempt+1}/3 failed to download {doc.url}: {e}")
+                    if attempt == 2:
+                        raise
 
     logger.info(f"Summarizing product profile documents for product_id={product_id}")
     for attempt in range(3):

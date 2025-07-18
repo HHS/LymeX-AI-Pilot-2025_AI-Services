@@ -53,6 +53,7 @@ async def get_product_profile_documents(
         analyze_product_profile_document(obj) for obj in objects if obj.is_dir is False
     ]
     documents = await asyncio.gather(*documents)
+    # documents = [doc for doc in documents if doc.file_name != "TextInput.txt"]
     return documents
 
 

@@ -204,7 +204,8 @@ if __name__ == "__main__":
     questionnaire_text = load_questionnaire_text()
     user_question = (
         "Please extract a complete product profile using all uploaded FDA PDF "
-        "documents. In particular:\n"
+        "document and return a JSON object matching the ProductProfile schema. "
+        "Only include fields present in schema. In particular:\n"
         "• Determine the FDA regulatory pathway ('510(k)', 'De Novo', or 'Premarket Approval (PMA)').\n"
         "• Capture **trade name, model number, and generic name**.\n"
         "• Capture **FDA product code** and **21 CFR regulation number**.\n"

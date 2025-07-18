@@ -1,8 +1,10 @@
+import asyncio
 from loguru import logger
 from src.infrastructure.redis import redis_client
 from src.modules.competitive_analysis.analyze_progress import AnalyzeProgress
 from src.modules.competitive_analysis.create_competitive_analysis import (
     create_competitive_analysis,
+    create_competitive_analysis_async,
 )
 from src.modules.competitive_analysis.download_system_product_competitive_documents import (
     download_system_product_competitive_documents,
@@ -72,29 +74,39 @@ async def analyze_competitive_analysis(
     )
     competitive_analysis_list: list[CompetitiveAnalysis] = []
 
-    for comp_doc in system_competitor_documents:
-        logger.info(
-            f"Creating competitive analysis for competitor document {comp_doc.product_name}"
-        )
-        competitive_analysis = await create_competitive_analysis(
-            product_profile_docs=docs, competitor_document_paths=[comp_doc.system_product_competitive_document]
-        )
-        competitive_analysis.reference_product_id = product_id
-        competitive_analysis.use_system_data = True
-        competitive_analysis_list.append(competitive_analysis)
+    # --- SYSTEM COMPETITOR DOCS ---
 
-    for comp_doc in user_competitor_documents:
-        logger.info(
-            f"Creating competitive analysis for user competitor document {comp_doc.product_name}"
+    system_tasks = [
+        create_competitive_analysis_async(
+            product_profile_docs=docs,
+            competitor_document_paths=[comp_doc.system_product_competitive_document],
         )
-        competitive_analysis = await create_competitive_analysis(
+        for comp_doc in system_competitor_documents
+    ]
+
+    # --- USER COMPETITOR DOCS ---
+    user_tasks = [
+        create_competitive_analysis_async(
             product_profile_docs=docs,
             competitor_document_paths=comp_doc.user_product_competitive_documents,
         )
-        competitive_analysis.reference_product_id = product_id
-        competitive_analysis.product_name = comp_doc.product_name
-        competitive_analysis.use_system_data = False
-        competitive_analysis_list.append(competitive_analysis)
+        for comp_doc in user_competitor_documents
+    ]
+
+    # --- RUN ALL TASKS IN PARALLEL ---
+    all_tasks = system_tasks + user_tasks
+    competitive_analysis_list = await asyncio.gather(*all_tasks)
+
+    # Optionally add metadata if you need to (see below)
+    for i, comp_doc in enumerate(system_competitor_documents):
+        competitive_analysis_list[i].reference_product_id = product_id
+        competitive_analysis_list[i].use_system_data = True
+
+    for i, comp_doc in enumerate(user_competitor_documents):
+        idx = len(system_competitor_documents) + i
+        competitive_analysis_list[idx].reference_product_id = product_id
+        competitive_analysis_list[idx].product_name = comp_doc.product_name
+        competitive_analysis_list[idx].use_system_data = False
 
     await CompetitiveAnalysis.find(
         CompetitiveAnalysis.reference_product_id == product_id,

@@ -22,10 +22,19 @@ async def download_user_product_competitive_documents(
             f"/tmp/user_competitor_documents/{competitive_analysis_document.file_name}"
         )
         async with httpx.AsyncClient() as client:
-            response = await client.get(competitive_analysis_document.url)
-            competitive_analysis_document_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(competitive_analysis_document_path, "wb") as f:
-                f.write(response.content)
+            for attempt in range(3):
+                try:
+                    response = await client.get(competitive_analysis_document.url)
+                    response.raise_for_status()
+                    competitive_analysis_document_path.parent.mkdir(
+                        parents=True, exist_ok=True
+                    )
+                    with open(competitive_analysis_document_path, "wb") as f:
+                        f.write(response.content)
+                    break
+                except Exception as e:
+                    if attempt == 2:
+                        raise
         if (
             competitive_analysis_document.competitor_name
             not in competitive_analysis_document_paths_dict

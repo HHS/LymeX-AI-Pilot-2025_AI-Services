@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from loguru import logger
 from src.environment import environment
 from src.infrastructure.openai import get_openai_client
-from src.modules.product_profile.analyze import load_questionnaire_text
 from src.utils.parse_openai_json import parse_openai_json
 from src.utils.prompt import model_to_schema
 from src.utils.supported_file_extensions import SUPPORTED_FILE_EXTENSIONS
@@ -187,6 +186,7 @@ async def extract_documents_data(
 
 if __name__ == "__main__":
     from src.modules.product_profile.schema import ProductProfileSchema
+    from src.modules.product_profile.analyze import load_questionnaire_text
 
     documents = [Path("/Users/macbookpro/Downloads/K203292.pdf")]
     system_instruction = (

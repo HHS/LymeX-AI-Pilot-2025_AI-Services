@@ -22,7 +22,7 @@ class FileSummary(BaseModel):
 
 
 async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
-    """
+    """x
     Upload all PDFs in `paths` to a single OpenAI assistant and return a FileSummary
     containing a per-file product name (from GPT) and overall summary.
     """

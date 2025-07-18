@@ -23,14 +23,14 @@ class ProductProfile(Document):
     product_code: Optional[str]
     regulation_number: Optional[str]
 
-    device_characteristics: list[DeviceCharacteristics]
-    performance_characteristics: list[PerformanceCharacteristics]
-    device_description: str
-    features: list[Feature]
-    claims: list[str]
-    conflict_alerts: list[str]
-    test_principle: str
-    comparative_claims: list[str]
+    # device_characteristics: list[DeviceCharacteristics] = []
+    # performance_characteristics: list[PerformanceCharacteristics] = []
+    device_description: str = "Not Available"
+    features: list[Feature] = []
+    claims: list[str] = []
+    conflict_alerts: list[str] = []
+    test_principle: str = "Not Available"
+    comparative_claims: list[str] = []
     fda_cleared: bool | None = None
     fda_approved: bool | None = None
     ce_marked: bool | None = None
@@ -42,16 +42,16 @@ class ProductProfile(Document):
     shelf_life: Optional[str]
     sterility_status: Optional[str]
 
-    warnings: list[str]
-    limitations: list[str]
-    contraindications: list[str]
+    warnings: list[str] = []
+    limitations: list[str] = []
+    # contraindications: list[str] = []
 
-    confidence_score: float
-    sources: list[str]
-    performance: Performance
-    price: int
-    instructions: list[str]
-    type_of_use: str
+    confidence_score: float = 0.0
+    sources: list[str] = []
+    # performance: Performance = None
+    price: int = 0
+    instructions: list[str] = []
+    type_of_use: str = "Not Available"
 
     # YAML-derived fields
     device_type: str

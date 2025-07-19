@@ -4,7 +4,6 @@ from src.infrastructure.redis import redis_client
 from src.modules.competitive_analysis.analyze_progress import AnalyzeProgress
 from src.modules.competitive_analysis.create_competitive_analysis import (
     create_competitive_analysis,
-    create_competitive_analysis_async,
 )
 from src.modules.competitive_analysis.download_system_product_competitive_documents import (
     download_system_product_competitive_documents,
@@ -77,7 +76,7 @@ async def analyze_competitive_analysis(
     # --- SYSTEM COMPETITOR DOCS ---
 
     system_tasks = [
-        create_competitive_analysis_async(
+        create_competitive_analysis(
             product_profile_docs=docs,
             competitor_document_paths=[comp_doc.system_product_competitive_document],
         )
@@ -86,7 +85,7 @@ async def analyze_competitive_analysis(
 
     # --- USER COMPETITOR DOCS ---
     user_tasks = [
-        create_competitive_analysis_async(
+        create_competitive_analysis(
             product_profile_docs=docs,
             competitor_document_paths=comp_doc.user_product_competitive_documents,
         )

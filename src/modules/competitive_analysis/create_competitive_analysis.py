@@ -6,7 +6,6 @@ from fastapi import HTTPException
 from loguru import logger
 from src.infrastructure.openai import get_openai_client
 from src.environment import environment
-import asyncio
 
 from src.modules.competitive_analysis.model import CompetitiveAnalysis
 from src.modules.product_profile.schema import ProductProfileDocumentResponse
@@ -18,7 +17,7 @@ class RegulatoryPathway(str, Enum):
     DE_NOVO = "De Novo"
 
 
-def create_competitive_analysis(
+async def create_competitive_analysis(
     product_profile_docs: list[ProductProfileDocumentResponse],
     competitor_document_paths: list[Path],
 ) -> CompetitiveAnalysis:
@@ -58,7 +57,7 @@ def create_competitive_analysis(
                     raise
 
         with path.open("rb") as f:
-            fo = client.files.create(file=f, purpose="assistants")
+            fo = await client.files.create(file=f, purpose="assistants")
         logger.info(
             f"Uploaded product profile document {doc.file_name} to OpenAI, file_id={fo.id}"
         )
@@ -67,7 +66,7 @@ def create_competitive_analysis(
     # — your original download & upload for competitor doc —
     for competitor_document_path in competitor_document_paths:
         with competitor_document_path.open("rb") as f:
-            cfo = client.files.create(file=f, purpose="assistants")
+            cfo = await client.files.create(file=f, purpose="assistants")
         logger.info(
             f"Uploaded competitor document {competitor_document_path.name} to OpenAI, file_id={cfo.id}"
         )
@@ -104,7 +103,7 @@ def create_competitive_analysis(
     )
 
     logger.info("Calling OpenAI chat completion for competitive analysis")
-    completion = client.chat.completions.create(
+    completion = await client.chat.completions.create(
         model=environment.openai_model,
         messages=[
             {"role": "system", "content": instructions},
@@ -144,11 +143,3 @@ def create_competitive_analysis(
         f"Competitive analysis parsed successfully for competitor {competitor_file_name}"
     )
     return analysis
-
-
-async def create_competitive_analysis_async(
-    product_profile_docs: list[ProductProfileDocumentResponse],
-    competitor_document_paths: list[Path],
-) -> CompetitiveAnalysis:
-    result = await asyncio.to_thread(create_competitive_analysis, product_profile_docs, competitor_document_paths)
-    return result

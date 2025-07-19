@@ -19,7 +19,7 @@ async def download_system_product_competitive_documents(
     product_summary: FileSummary,
     number_of_documents: int,
 ) -> list[SystemProductCompetitiveDocument]:
-    similar_docs = search_similar(
+    similar_docs = await search_similar(
         product_summary.summary,
         number_of_documents,
     )
@@ -43,7 +43,11 @@ async def download_system_product_competitive_documents(
         key = f"{system_data_folder}/{doc.system_product_competitive_document.name}"
         logger.info(f"Downloading competitor document from MinIO with key={key}")
         raw_data = await get_object(key)
-        doc.system_product_competitive_document.parent.mkdir(parents=True, exist_ok=True)
+        doc.system_product_competitive_document.parent.mkdir(
+            parents=True, exist_ok=True
+        )
         doc.system_product_competitive_document.write_bytes(raw_data)
-        logger.info(f"Saved competitor document to {doc.system_product_competitive_document}")
+        logger.info(
+            f"Saved competitor document to {doc.system_product_competitive_document}"
+        )
     return system_competitor_documents

@@ -40,21 +40,21 @@ except Exception as e:
         raise
 
 
-def embed_text(text: str) -> List[float]:
+async def embed_text(text: str) -> List[float]:
     """
     Embed the given text into a high-dimensional vector.
     """
     openai_client = get_openai_client()
-    resp = openai_client.embeddings.create(input=[text], model=EMBEDDING_MODEL)
+    resp = await openai_client.embeddings.create(input=[text], model=EMBEDDING_MODEL)
     # resp is a CreateEmbeddingResponse object, so access via attributes:
     return resp.data[0].embedding  # List[float]
 
 
-def add_document(filename: str, summary: FileSummary) -> None:
+async def add_document(filename: str, summary: FileSummary) -> None:
     """
     Add a new document point with filename and summary.
     """
-    vector = embed_text(summary.summary)
+    vector = await embed_text(summary.summary)
     payload = {
         "filename": filename,
         "summary": summary.summary,
@@ -126,11 +126,11 @@ def get_by_filename(filename: str) -> List[PointStruct]:
     return result  # List[PointStruct]
 
 
-def search_similar(summary: str, top_k: int = 5) -> List[ScoredPoint]:
+async def search_similar(summary: str, top_k: int = 5) -> List[ScoredPoint]:
     """
     Embeds the query summary and returns the top_k most similar points.
     """
-    q_vector = embed_text(summary)
+    q_vector = await embed_text(summary)
     hits = client.search(
         collection_name="system_data",
         query_vector=q_vector,

@@ -39,7 +39,7 @@ async def index_system_data() -> None:
         logger.info(f"Summary for {file}: {summary}")
 
         logger.info(f"• Summarized {file}: {summary!r}")
-        add_document(file, summary)
+        await add_document(file, summary)
 
     # 4) remove deleted files from Qdrant
     for filename in files_to_unindex:

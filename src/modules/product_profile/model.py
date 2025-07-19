@@ -5,7 +5,6 @@ from pydantic import Field
 from src.utils.base import SafeBase
 from src.modules.product_profile.schema import (
     Feature,
-    Performance,
     RegulatoryClassification,
     DeviceCharacteristics,
     PerformanceCharacteristics,
@@ -14,34 +13,45 @@ from src.modules.product_profile.schema import (
 
 class ProductProfile(SafeBase, Document):
     product_id: str = Field(..., description="Unique identifier for the product")
-    product_trade_name: str = Field("Not Available", description="Trade name of the product")
-    model_number: Optional[str] = Field("Not Available", description="Model number of the product")
-    reference_number: str = Field("Not Available", description="Reference number for the product")
+    product_trade_name: str = Field(
+        "Not Available", description="Trade name of the product"
+    )
+    model_number: Optional[str] = Field(
+        "Not Available", description="Model number of the product"
+    )
+    reference_number: str = Field(
+        "Not Available", description="Reference number for the product"
+    )
     description: str = Field("Not Available", description="Description of the product")
-    generic_name: Optional[str] = Field("Not Available", description="Generic name of the product")
+    generic_name: Optional[str] = Field(
+        "Not Available", description="Generic name of the product"
+    )
 
-    regulatory_pathway: Optional[str] = Field("Not Available", description="Regulatory pathway for product approval")
+    regulatory_pathway: Optional[str] = Field(
+        "Not Available", description="Regulatory pathway for product approval"
+    )
     regulatory_classifications: list[RegulatoryClassification] = Field(
-        default_factory=RegulatoryClassification, 
-        description="List of regulatory classifications"
+        default_factory=RegulatoryClassification,
+        description="List of regulatory classifications",
     )
     product_code: Optional[str] = Field("Not Available", description="Product code")
-    regulation_number: Optional[str] = Field("Not Available", description="Regulation Number")
+    regulation_number: Optional[str] = Field(
+        "Not Available", description="Regulation Number"
+    )
 
     device_characteristics: list[DeviceCharacteristics] = Field(
-        default_factory=DeviceCharacteristics, 
-        description="List of device characteristics"
+        default_factory=DeviceCharacteristics,
+        description="List of device characteristics",
     )
     performance_characteristics: list[PerformanceCharacteristics] = Field(
-        default_factory=PerformanceCharacteristics, 
-        description="List of performance characteristics"
+        default_factory=PerformanceCharacteristics,
+        description="List of performance characteristics",
     )
     device_description: str = Field(
         "Not Available", description="Description of the device"
     )
     features: list[Feature] = Field(
-        default_factory=Feature, 
-        description="List of device features"
+        default_factory=Feature, description="List of device features"
     )
     claims: list[str] = Field(
         default_factory=list, description="Claims made about the product"
@@ -66,7 +76,7 @@ class ProductProfile(SafeBase, Document):
         default_factory=list, description="Step-by-step instructions for use"
     )
 
-    storage_conditions: Optional[str]  = Field(
+    storage_conditions: Optional[str] = Field(
         None, description="Storage conditions for the product"
     )
     shelf_life: Optional[str] = Field(None, description="Shelf life of the product")
@@ -109,7 +119,7 @@ class ProductProfile(SafeBase, Document):
     patient_population: str = Field(
         "Not Available", description="Patient population for the product"
     )
-    use_environment: str  = Field(
+    use_environment: str = Field(
         "Not Available", description="Environment where the product is used"
     )
     combination_use: str = Field(

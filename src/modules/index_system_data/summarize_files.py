@@ -35,12 +35,12 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
     for path in paths:
         logger.info(f"Uploading file: {path.name}")
         with open(path, "rb") as f:
-            file_obj = client.files.create(file=f, purpose="assistants")
+            file_obj = await client.files.create(file=f, purpose="assistants")
         uploaded_ids.append(file_obj.id)
         logger.info(f"Uploaded {path.name} as {file_obj.id}")
 
     # Create the assistant with clear instructions for JSON output
-    assistant = client.beta.assistants.create(
+    assistant = await client.beta.assistants.create(
         instructions=(
             "You are an FDA subject-matter expert. For each attached PDF device form, "
             "extract the product name and the file name. Then, provide:\n"
@@ -63,12 +63,12 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
 
     try:
         # Start thread and send the request
-        thread = client.beta.threads.create()
+        thread = await client.beta.threads.create()
         thread_id = thread.id
         attachments = [
             {"file_id": fid, "tools": [{"type": "file_search"}]} for fid in uploaded_ids
         ]
-        client.beta.threads.messages.create(
+        await client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
             content=(
@@ -83,13 +83,13 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
         )
 
         # Run the assistant and poll for completion
-        run = client.beta.threads.runs.create(
+        run = await client.beta.threads.runs.create(
             thread_id=thread_id, assistant_id=assistant_id
         )
         run_id = run.id
         deadline = datetime.utcnow() + timedelta(seconds=timeout)
         while datetime.utcnow() < deadline:
-            status = client.beta.threads.runs.retrieve(
+            status = await client.beta.threads.runs.retrieve(
                 thread_id=thread_id, run_id=run_id
             ).status
             if status == "completed":
@@ -101,7 +101,7 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
             raise OpenAIError("Assistant run timed out")
 
         # Retrieve and parse the JSON response
-        messages = client.beta.threads.messages.list(thread_id=thread_id).data
+        messages = await client.beta.threads.messages.list(thread_id=thread_id).data
         response = next(
             (m.content[0].text.value for m in messages if m.role == "assistant"), None
         )
@@ -122,8 +122,8 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
     finally:
         # Cleanup all resources
         for fid in uploaded_ids:
-            client.files.delete(fid)
-        client.beta.assistants.delete(assistant_id)
+            await client.files.delete(fid)
+        await client.beta.assistants.delete(assistant_id)
         logger.info("Cleanup: deleted all files and assistant.")
 
     logger.info(f"Final summary for [{', '.join([p.name for p in paths])}]: {summary}")

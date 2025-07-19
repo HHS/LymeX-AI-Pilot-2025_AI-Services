@@ -117,7 +117,7 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
                         resp.raise_for_status()
                     bio = BytesIO(resp.content)
                     bio.name = doc.file_name
-                    uploaded = client.files.create(file=bio, purpose="assistants")
+                    uploaded = await client.files.create(file=bio, purpose="assistants")
                     upload_id = uploaded.id
             if not upload_id:
                 logger.error(f"Failed to upload {doc.file_name}")
@@ -127,7 +127,7 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
 
         function_schema = RegulatoryPathway.model_json_schema(by_alias=True)
 
-        assistant = client.beta.assistants.create(
+        assistant = await client.beta.assistants.create(
             instructions=build_regulatory_pathway_instructions(RegulatoryPathway),
             model=environment.openai_model,
             tools=[
@@ -143,13 +143,13 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
             ],
         )
 
-        thread = client.beta.threads.create()
+        thread = await client.beta.threads.create()
         QUESTION = (
             "Read all uploaded PDF documents and extract all relevant information. "
             "Return a JSON object matching the RegulatoryPathway schema (structure provided in your system instructions). "
             "Include as much detail as possible."
         )
-        client.beta.threads.messages.create(
+        await client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
             content=QUESTION,
@@ -158,11 +158,13 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
             ],
         )
 
-        run = client.beta.threads.runs.create(
+        run = await client.beta.threads.runs.create(
             thread_id=thread.id, assistant_id=assistant.id
         )
         for _ in range(60):
-            run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+            run = await client.beta.threads.runs.retrieve(
+                thread_id=thread.id, run_id=run.id
+            )
             if run.status == "completed":
                 break
             if run.status == "failed":
@@ -173,7 +175,7 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
                 tool_outputs = [
                     {"tool_call_id": tc.id, "output": ""} for tc in tool_calls
                 ]
-                run = client.beta.threads.runs.submit_tool_outputs(
+                run = await client.beta.threads.runs.submit_tool_outputs(
                     thread_id=thread.id,
                     run_id=run.id,
                     tool_outputs=tool_outputs,
@@ -181,7 +183,7 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
             await asyncio.sleep(5)
 
         # Retrieve assistant message
-        msgs = client.beta.threads.messages.list(thread_id=thread.id)
+        msgs = await client.beta.threads.messages.list(thread_id=thread.id)
         result_text = None
         for msg in msgs.data:
             if msg.role == "assistant":
@@ -194,12 +196,12 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
 
         # Cleanup assistant and files
         try:
-            client.beta.assistants.delete(assistant.id)
+            await client.beta.assistants.delete(assistant.id)
         except Exception:
             pass
         for fid in file_ids:
             try:
-                client.files.delete(fid)
+                await client.files.delete(fid)
             except Exception:
                 pass
 

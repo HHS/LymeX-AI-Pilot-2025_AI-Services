@@ -16,7 +16,7 @@ import io
 import re
 from loguru import logger
 
-from src.infrastructure.openai import get_openai_client
+from src.infrastructure.openai import get_openai_client_sync
 from src.infrastructure.redis import redis_client
 
 from src.modules.performance_testing.storage import (
@@ -356,7 +356,7 @@ async def analyze_performance_testing(product_id: str, attachment_ids: Optional[
         
         required_tests = plan_doc.required_tests if plan_doc else None
 
-        #client = get_openai_client()
+        #client = get_openai_client_sync()
         #aid, full_mapping = await _assistant_id(client)
         
         # pull doc list from MinIO if caller didn’t hand us explicit IDs
@@ -371,7 +371,7 @@ async def analyze_performance_testing(product_id: str, attachment_ids: Optional[
                 )
                 return None                    # signals None to the caller
 
-            client   = get_openai_client()              # need client early
+            client   = get_openai_client_sync()              # need client early
             uploads  = []
             num_files = len(docs)     # pass the number of documents
             for d in docs:
@@ -384,7 +384,7 @@ async def analyze_performance_testing(product_id: str, attachment_ids: Optional[
             logger.info(" %d PDFs uploaded for %s", len(uploads), product_id)
         else:
             num_files = len(attachment_ids)     # pass the number of documents based on their attachment_ids
-            client = get_openai_client()                # unchanged path
+            client = get_openai_client_sync()                # unchanged path
 
         aid, full_mapping = await _assistant_id(client)
 

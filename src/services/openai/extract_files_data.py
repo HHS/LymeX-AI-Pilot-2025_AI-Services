@@ -23,7 +23,7 @@ async def extract_files_data(
     if not file_paths:
         logger.error("No file paths provided for extraction.")
         raise ValueError("No file paths provided for extraction.")
-    uploaded_files = await upload_files(openai_client, file_paths)
+    uploaded_files = await upload_files(await openai_client, file_paths)
     if not uploaded_files:
         logger.error("No files were uploaded successfully.")
         raise HTTPException(500, "No files were uploaded successfully.")
@@ -76,7 +76,9 @@ Words like "unknown", "not available", "not applicable".. should be used if the 
         result = response.output_parsed
     finally:
         try:
-            await delete_files(openai_client, [file.id for file in uploaded_files])
+            await delete_files(
+                await openai_client, [file.id for file in uploaded_files]
+            )
         except Exception as e:
             logger.error("Failed to delete files after extraction: {}", e)
 

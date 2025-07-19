@@ -168,12 +168,12 @@ class ProductProfileSchema(SafeBase):
         default_factory=list, description="Step-by-step instructions for use"
     )
 
-    storage_conditions: Optional[str] = Field(
-        None, description="Storage conditions for the product"
+    storage_conditions: str = Field(
+        "Not Available", description="Storage conditions for the product"
     )
-    shelf_life: Optional[str] = Field(None, description="Shelf life of the product")
-    sterility_status: Optional[str] = Field(
-        None, description="Sterility status of the product"
+    shelf_life: str = Field("Not Available", description="Shelf life of the product")
+    sterility_status: str = Field(
+        "Not Available", description="Sterility status of the product"
     )
 
     warnings: list[str] = Field(
@@ -197,7 +197,7 @@ class ProductProfileSchema(SafeBase):
         default_factory=Performance,
         description="Performance metrics for the product",
     )
-    price: Optional[int] = Field(0, description="Price of the product")
+    price: int = Field(0, description="Price of the product")
     instructions: list[str] = Field(
         default_factory=list, description="General instructions for the product"
     )

@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import Field
 from src.utils.base import SafeBase
 
 
@@ -21,8 +21,12 @@ class RegulatoryClassification(SafeBase):
 
 class DeviceCharacteristics(SafeBase):
     device_description: str = Field("Not Available", description="Device Description")
-    principle_of_operation: str = Field("Not Available", description="Principle of Operation")
-    interpretation_of_results: str = Field("Not Available", description="Interpretation of Results")
+    principle_of_operation: str = Field(
+        "Not Available", description="Principle of Operation"
+    )
+    interpretation_of_results: str = Field(
+        "Not Available", description="Interpretation of Results"
+    )
     # generic_name: Optional[str] = None
     storage_conditions: Optional[str] = None
     shelf_life: Optional[str] = None
@@ -33,12 +37,24 @@ class DeviceCharacteristics(SafeBase):
 
 
 class PerformanceCharacteristics(SafeBase):
-    analytical_sensitivity: str = Field("Not Available", description="Analytical Senstivity")
-    analytical_specificity: str = Field("Not Available", description="Analytical Specificity")
-    precision_reproducibility: str = Field("Not Available", description="APrecision Reproducibility")
-    clinical_performance: str = Field("Not Available", description="Clinical Performance")
-    performance_summary: str = Field("Not Available", description="Overall Performance Summary")
-    performance_references: list[str] = Field(default_factory=list, description="Performance References")
+    analytical_sensitivity: str = Field(
+        "Not Available", description="Analytical Senstivity"
+    )
+    analytical_specificity: str = Field(
+        "Not Available", description="Analytical Specificity"
+    )
+    precision_reproducibility: str = Field(
+        "Not Available", description="APrecision Reproducibility"
+    )
+    clinical_performance: str = Field(
+        "Not Available", description="Clinical Performance"
+    )
+    performance_summary: str = Field(
+        "Not Available", description="Overall Performance Summary"
+    )
+    performance_references: list[str] = Field(
+        default_factory=list, description="Performance References"
+    )
 
 
 class Feature(SafeBase):
@@ -92,33 +108,42 @@ class ProductProfileSchema(SafeBase):
     product_trade_name: str = Field(
         "Not Available", description="Trade name of the product"
     )
-    model_number: Optional[str] = Field(None, description="Model number of the product")
+    model_number: Optional[str] = Field(
+        "Not Available", description="Model number of the product"
+    )
     reference_number: str = Field(
         "Not Available", description="Reference number for the product"
     )
     description: str = Field("Not Available", description="Description of the product")
-    generic_name: Optional[str] = Field(None, description="Generic name of the product")
+    generic_name: Optional[str] = Field(
+        "Not Available", description="Generic name of the product"
+    )
 
     regulatory_pathway: Optional[str] = Field(
-        None, description="Regulatory pathway for product approval"
+        "Not Available", description="Regulatory pathway for product approval"
     )
     regulatory_classifications: list[RegulatoryClassification] = Field(
-        default_factory=list, description="List of regulatory classifications"
+        default_factory=RegulatoryClassification,
+        description="List of regulatory classifications",
     )
-    product_code: Optional[str] = Field(None, description="Product code")
-    regulation_number: Optional[str] = Field(None, description="Regulation number")
+    product_code: Optional[str] = Field("Not Available", description="Product code")
+    regulation_number: Optional[str] = Field(
+        "Not Available", description="Regulation Number"
+    )
 
     device_characteristics: list[DeviceCharacteristics] = Field(
-        default_factory=list, description="List of device characteristics"
+        default_factory=DeviceCharacteristics,
+        description="List of device characteristics",
     )
     performance_characteristics: list[PerformanceCharacteristics] = Field(
-        default_factory=list, description="List of performance characteristics"
+        default_factory=PerformanceCharacteristics,
+        description="List of performance characteristics",
     )
     device_description: str = Field(
         "Not Available", description="Description of the device"
     )
     features: list[Feature] = Field(
-        default_factory=list, description="List of device features"
+        default_factory=Feature, description="List of device features"
     )
     claims: list[str] = Field(
         default_factory=list, description="Claims made about the product"
@@ -168,10 +193,11 @@ class ProductProfileSchema(SafeBase):
         default_factory=list,
         description="Sources of information for the product profile",
     )
-    performance: Optional[Performance] = Field(
-        None, description="Performance metrics for the product"
+    performance: Performance = Field(
+        default_factory=Performance,
+        description="Performance metrics for the product",
     )
-    price: int = Field(0, description="Price of the product")
+    price: Optional[int] = Field(0, description="Price of the product")
     instructions: list[str] = Field(
         default_factory=list, description="General instructions for the product"
     )

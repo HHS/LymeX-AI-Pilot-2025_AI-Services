@@ -5,6 +5,7 @@ from pydantic import Field
 from src.utils.base import SafeBase
 from src.modules.product_profile.schema import (
     Feature,
+    Performance,
     RegulatoryClassification,
     DeviceCharacteristics,
     PerformanceCharacteristics,
@@ -101,10 +102,10 @@ class ProductProfile(SafeBase, Document):
         default_factory=list,
         description="Sources of information for the product profile",
     )
-    # performance: Performance = Field(
-    #     default_factory=Performance,
-    #     description="Performance metrics for the product",
-    # )
+    performance: Performance = Field(
+        default_factory=Performance,
+        description="Performance metrics for the product",
+    )
     price: Optional[int] = Field(0, description="Price of the product")
     instructions: list[str] = Field(
         default_factory=list, description="General instructions for the product"

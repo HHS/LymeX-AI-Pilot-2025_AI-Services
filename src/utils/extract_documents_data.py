@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 from fastapi import HTTPException
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from pydantic import BaseModel
 from loguru import logger
 from src.environment import environment
@@ -59,14 +59,14 @@ def upload_documents(
     return file_ids
 
 
-def cleanup_uploaded_files(
-    client: OpenAI,
+async def cleanup_uploaded_files(
+    client: AsyncOpenAI,
     file_ids: list[str],
 ) -> None:
     logger.info("Cleaning up {} uploaded files", len(file_ids))
     for file_id in file_ids:
         try:
-            client.files.delete(file_id)
+            await client.files.delete(file_id)
             logger.info("Deleted file with id {}", file_id)
         except Exception as e:
             logger.error("Error deleting file {}: {}", file_id, e)
@@ -89,12 +89,12 @@ async def extract_documents_data(
     client = get_openai_client()
     logger.info("Obtained OpenAI client")
 
-    file_ids = upload_documents(client, documents)
+    file_ids = upload_documents(await client, documents)
 
     try:
         function_schema = model_class.model_json_schema(by_alias=True)
         logger.info("Creating assistant with model: {}", environment.openai_model)
-        assistant = client.beta.assistants.create(
+        assistant = await client.beta.assistants.create(
             instructions=instruction,
             model=environment.openai_model,
             tools=[
@@ -110,9 +110,9 @@ async def extract_documents_data(
             ],
         )
         logger.info("Assistant created with id {}", assistant.id)
-        thread = client.beta.threads.create()
+        thread = await client.beta.threads.create()
         logger.info("Thread created with id {}", thread.id)
-        client.beta.threads.messages.create(
+        await client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
             content=user_question,
@@ -121,13 +121,15 @@ async def extract_documents_data(
             ],
         )
         logger.info("User question sent to thread {}", thread.id)
-        run = client.beta.threads.runs.create(
+        run = await client.beta.threads.runs.create(
             thread_id=thread.id, assistant_id=assistant.id
         )
         logger.info("Run started with id {}", run.id)
 
         for attempt in range(60):
-            run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+            run = await client.beta.threads.runs.retrieve(
+                thread_id=thread.id, run_id=run.id
+            )
             logger.info("Run status: {} (attempt {})", run.status, attempt + 1)
             if run.status == "completed":
                 logger.info("Run completed")
@@ -148,7 +150,7 @@ async def extract_documents_data(
                 tool_outputs = [
                     {"tool_call_id": tc.id, "output": ""} for tc in tool_calls
                 ]
-                run = client.beta.threads.runs.submit_tool_outputs(
+                run = await client.beta.threads.runs.submit_tool_outputs(
                     thread_id=thread.id,
                     run_id=run.id,
                     tool_outputs=tool_outputs,
@@ -158,16 +160,16 @@ async def extract_documents_data(
     finally:
         try:
             logger.info("Deleting assistant with id {}", assistant.id)
-            client.beta.assistants.delete(assistant.id)
+            await client.beta.assistants.delete(assistant.id)
         except Exception as e:
             logger.error("Error during assistant cleanup: {}", e)
 
         try:
-            cleanup_uploaded_files(client, file_ids)
+            await cleanup_uploaded_files(client, file_ids)
         except Exception as e:
             logger.error("Error during cleanup: {}", e)
 
-    msgs = client.beta.threads.messages.list(thread_id=thread.id)
+    msgs = await client.beta.threads.messages.list(thread_id=thread.id)
     result_text = None
     for msg in msgs.data:
         if msg.role == "assistant":

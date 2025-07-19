@@ -14,7 +14,8 @@ Public API:
 
 from __future__ import annotations
 
-import asyncio, json
+import asyncio
+import json
 from datetime import datetime
 from typing import Dict, List
 
@@ -22,7 +23,7 @@ from loguru import logger
 from fastapi import HTTPException
 
 from src.environment import environment
-from src.infrastructure.openai import get_openai_client
+from src.infrastructure.openai import get_openai_client_sync
 from src.modules.performance_testing.const import TEST_CATALOGUE
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.product_profile.model import ProductProfile  # for rule engine
@@ -123,7 +124,7 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
     rule_tests = _rule_engine(profile) if profile else {}
 
     # ── Build assistant dynamically from TEST_CATALOGUE ────
-    client = get_openai_client()
+    client = get_openai_client_sync()
 
     assistant = client.beta.assistants.create(
         name="Performance Test Planner",

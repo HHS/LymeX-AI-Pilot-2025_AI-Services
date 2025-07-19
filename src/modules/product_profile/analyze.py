@@ -14,7 +14,7 @@ from src.modules.product_profile.model import (
 )
 from src.modules.product_profile.schema import ProductProfileSchema
 from src.modules.product_profile.storage import get_product_profile_documents
-from src.utils.extract_documents_data import extract_documents_data
+from src.services.openai.extract_files_data import extract_files_data
 
 
 def load_questionnaire_text():
@@ -109,8 +109,8 @@ async def do_analyze_product_profile(product_id: str) -> None:
         f"{questionnaire_text}"
     )
 
-    result = await extract_documents_data(
-        documents=doc_paths,
+    result = await extract_files_data(
+        file_paths=doc_paths,
         system_instruction=instruction,
         user_question=question,
         model_class=ProductProfileSchema,

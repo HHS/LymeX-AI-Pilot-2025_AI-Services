@@ -3,6 +3,7 @@ from openai import AsyncOpenAI
 from openai.types import FilePurpose, FileObject
 from loguru import logger
 from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
+from src.utils.supported_file_extensions import convert_supported_file_extension_to_pdf
 
 
 async def upload_file(
@@ -10,10 +11,12 @@ async def upload_file(
     file_path: Path,
     purpose: FilePurpose = "user_data",
 ) -> FileObject:
-    logger.info(f"Uploading file: {file_path} with purpose: {purpose}")
+    converted_file_path = await convert_supported_file_extension_to_pdf(file_path)
+
+    logger.info(f"Uploading file: {converted_file_path} with purpose: {purpose}")
     try:
         upload_file = await openai_client.files.create(
-            file=file_path,
+            file=converted_file_path,
             purpose=purpose,
         )
         logger.success(

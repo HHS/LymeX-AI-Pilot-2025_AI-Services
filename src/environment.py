@@ -21,6 +21,7 @@ class Environment(BaseSettings):
 
     openai_api_key: str = Field(...)
     openai_model: str = Field("gpt-4.1")
+    # openai_model: str = Field("o3")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

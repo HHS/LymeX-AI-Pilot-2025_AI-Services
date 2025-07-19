@@ -89,8 +89,10 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
         run_id = run.id
         deadline = datetime.utcnow() + timedelta(seconds=timeout)
         while datetime.utcnow() < deadline:
-            status = await client.beta.threads.runs.retrieve(
-                thread_id=thread_id, run_id=run_id
+            status = (
+                await client.beta.threads.runs.retrieve(
+                    thread_id=thread_id, run_id=run_id
+                )
             ).status
             if status == "completed":
                 break
@@ -101,7 +103,7 @@ async def summarize_files(paths: list[Path], timeout: int = 300) -> FileSummary:
             raise OpenAIError("Assistant run timed out")
 
         # Retrieve and parse the JSON response
-        messages = await client.beta.threads.messages.list(thread_id=thread_id).data
+        messages = (await client.beta.threads.messages.list(thread_id=thread_id)).data
         response = next(
             (m.content[0].text.value for m in messages if m.role == "assistant"), None
         )

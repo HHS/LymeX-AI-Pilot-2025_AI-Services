@@ -2,18 +2,38 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
 
+class IssueClassification(str, Enum):
+    MISSING_ELEMENT = "Missing Element"
+    CLARITY = "Clarity"
+    REFACTORING = "Refactoring"
+
+class IssueSeverity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    CRITICAL = "CRITICAL"
+
+class Issue(BaseModel):
+    """One AI-detected problem in the IFU."""
+
+    title: str = Field(..., description="Short name of the issue")
+    classification: IssueClassification = Field(
+        ..., description="Missing Element | Clarity | Refactoring"
+    )
+    description: str = Field(..., description="Why this is an issue / change request")
+    severity: IssueSeverity = Field(..., description="LOW | MEDIUM | CRITICAL")
+    suggested_fix: str = Field(..., description="AI‑recommended wording or action")
 
 class IFUSource(BaseModel):
-    source: str = Field(..., description="Source of the IFU phrase")
-    reason: str = Field(..., description="Reason for including this phrase in the IFU")
+    source: str = Field("Not Available", description="Source of the IFU phrase")
+    reason: str = Field("Not Available", description="Reason for including this phrase in the IFU")
     category: str = Field(
-        ..., description="Category of the IFU phrase, e.g., safety, usage, maintenance"
+        "Not Available", description="Category of the IFU phrase, e.g., safety, usage, maintenance"
     )  # Example: safety, usage, maintenance, etc.
 
 
 class IFU(BaseModel):
     phrase: str = Field(
-        ..., description="The phrase from the Instructions for Use (IFU)"
+        "Not Available", description="The phrase from the Instructions for Use (IFU)"
     )
     sources: list[IFUSource] | None = Field(
         None, description="List of sources for the IFU phrase"
@@ -39,6 +59,7 @@ class MissingElementLevel(str, Enum):
 
 class MissingElement(BaseModel):
     id: int
+    title: str #= Field("Not Available", description="Short name of the issue")
     description: str
     suggested_fix: str
     level: MissingElementLevel

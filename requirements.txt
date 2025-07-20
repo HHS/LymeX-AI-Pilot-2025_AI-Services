@@ -13,3 +13,4 @@ qdrant-client
 fpdf
 markdown
 scikit-learn
+motor

@@ -1,12 +1,10 @@
 import asyncio
 from datetime import datetime, timezone
-from io import BytesIO
+from pathlib import Path
 from fastapi import HTTPException
-import httpx
 from src.environment import environment
 from loguru import logger
 from pydantic import BaseModel
-from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 from src.infrastructure.openai import get_openai_client
 from src.modules.regulatory_pathway.model import AnalyzeRegulatoryPathwayProgress
 from src.modules.product_profile.storage import get_product_profile_documents
@@ -107,23 +105,10 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
         file_ids: list[str] = []
 
         for doc in docs:
-            upload_id = None
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10)
-            ):
-                with attempt:
-                    async with httpx.AsyncClient() as http:
-                        resp = await http.get(doc.url)
-                        resp.raise_for_status()
-                    bio = BytesIO(resp.content)
-                    bio.name = doc.file_name
-                    uploaded = await client.files.create(file=bio, purpose="assistants")
-                    upload_id = uploaded.id
-            if not upload_id:
-                logger.error(f"Failed to upload {doc.file_name}")
-                raise HTTPException(502, f"Upload failed for {doc.file_name}")
-            file_ids.append(upload_id)
-            logger.info(f"Uploaded {doc.file_name} as {upload_id}")
+            path = Path(doc.path)
+            uploaded = await client.files.create(file=path, purpose="assistants")
+            file_ids.append(uploaded.id)
+            logger.info(f"Uploaded {doc.file_name} as {uploaded.id}")
 
         function_schema = RegulatoryPathway.model_json_schema(by_alias=True)
 

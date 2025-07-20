@@ -1,12 +1,12 @@
-from pathlib import Path
 from loguru import logger
-from src.infrastructure.minio import get_object
 from src.infrastructure.qdrant import add_document, delete_document, get_all_documents
 from src.modules.index_system_data.storage import (
     get_system_data_files,
     get_system_data_folder,
 )
 from src.modules.index_system_data.summarize_files import summarize_files
+from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
+from src.utils.download_minio_files import download_minio_files
 
 
 async def index_system_data() -> None:
@@ -25,21 +25,21 @@ async def index_system_data() -> None:
     ]
     logger.info(f"Files to Index: {files_to_index}")
     logger.info(f"Files to Unindex: {files_to_unindex}")
-    system_data_folder = get_system_data_folder()
-    for file in files_to_index:
-        key = f"{system_data_folder}/{file}"
-        logger.info(f"Indexing file: {key}")
-        raw_data = await get_object(key)
-        # save to temporary file
-        temp_path = Path(f"/tmp/{system_data_folder}/{file}")
-        temp_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(temp_path, "wb") as f:
-            f.write(raw_data)
-        summary = await summarize_files([temp_path])
-        logger.info(f"Summary for {file}: {summary}")
 
-        logger.info(f"• Summarized {file}: {summary!r}")
-        await add_document(file, summary)
+    system_data_folder = get_system_data_folder()
+    files_to_index_keys = [f"{system_data_folder}/{file}" for file in files_to_index]
+    files_to_index_paths = await download_minio_files(files_to_index_keys)
+    files_to_index_summarize_tasks = [
+        summarize_files([file_path]) for file_path in files_to_index_paths
+    ]
+    files_to_index_summaries = await async_gather_with_max_concurrent(
+        files_to_index_summarize_tasks,
+    )
+    add_document_tasks = [
+        add_document(file_path.name, summary)
+        for file_path, summary in zip(files_to_index_paths, files_to_index_summaries)
+    ]
+    await async_gather_with_max_concurrent(add_document_tasks)
 
     # 4) remove deleted files from Qdrant
     for filename in files_to_unindex:

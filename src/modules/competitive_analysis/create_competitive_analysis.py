@@ -47,4 +47,4 @@ async def create_competitive_analysis(
         use_system_data=use_system_data,
         **result.model_dump(),
     )
-    return competitive_analysis_detail
+    return await competitive_analysis_detail.save()

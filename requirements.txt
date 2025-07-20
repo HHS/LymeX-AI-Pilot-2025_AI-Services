@@ -12,3 +12,4 @@ tenacity
 qdrant-client
 fpdf
 markdown
+scikit-learn

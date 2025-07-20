@@ -11,6 +11,7 @@ from src.modules.clinical_trial.model import ClinicalTrial
 from src.modules.competitive_analysis.model import (
     AnalyzeCompetitiveAnalysisProgress,
     CompetitiveAnalysis,
+    CompetitiveAnalysisDetail,
 )
 from src.modules.performance_testing.model import AnalyzePerformanceTestingProgress, PerformanceTesting
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
@@ -35,6 +36,7 @@ async def init_db() -> None:
         document_models=[
             Product,
             CompetitiveAnalysis,
+            CompetitiveAnalysisDetail,
             AnalyzeCompetitiveAnalysisProgress,
             ProductProfile,
             AnalyzeProductProfileProgress,

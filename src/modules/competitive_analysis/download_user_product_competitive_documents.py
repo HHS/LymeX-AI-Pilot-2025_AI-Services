@@ -1,40 +1,27 @@
 from pathlib import Path
-
+from sklearn.metrics.pairwise import cosine_similarity
 from pydantic import BaseModel
+from src.infrastructure.qdrant import embed_text
 from src.modules.competitive_analysis.storage import get_competitive_analysis_documents
-import httpx
+from src.modules.index_system_data.summarize_files import summarize_files
+from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
 
 
 class UserProductCompetitiveDocument(BaseModel):
     product_name: str
     user_product_competitive_documents: list[Path]
+    confidence_score: float
 
 
 async def download_user_product_competitive_documents(
-    product_id: str,
+    product_id: str, q_vector: list[float]
 ) -> list[UserProductCompetitiveDocument]:
     competitive_analysis_documents = await get_competitive_analysis_documents(
         product_id
     )
     competitive_analysis_document_paths_dict: dict[str, list[Path]] = {}
     for competitive_analysis_document in competitive_analysis_documents:
-        competitive_analysis_document_path = Path(
-            f"/tmp/user_competitor_documents/{competitive_analysis_document.file_name}"
-        )
-        async with httpx.AsyncClient() as client:
-            for attempt in range(3):
-                try:
-                    response = await client.get(competitive_analysis_document.url)
-                    response.raise_for_status()
-                    competitive_analysis_document_path.parent.mkdir(
-                        parents=True, exist_ok=True
-                    )
-                    with open(competitive_analysis_document_path, "wb") as f:
-                        f.write(response.content)
-                    break
-                except Exception as e:
-                    if attempt == 2:
-                        raise
+        competitive_analysis_document_path = competitive_analysis_document.path
         if (
             competitive_analysis_document.competitor_name
             not in competitive_analysis_document_paths_dict
@@ -45,9 +32,25 @@ async def download_user_product_competitive_documents(
         competitive_analysis_document_paths_dict[
             competitive_analysis_document.competitor_name
         ].append(competitive_analysis_document_path)
-    return [
-        UserProductCompetitiveDocument(
-            product_name=competitor_name, user_product_competitive_documents=paths
+
+    async def create_user_product_competitive_document(
+        competitor_name: str,
+        paths: list[Path],
+    ) -> UserProductCompetitiveDocument:
+        user_upload_summary = await summarize_files(paths)
+        user_upload_summary_vector = await embed_text(user_upload_summary.summary)
+        confidence_score = cosine_similarity(user_upload_summary_vector, q_vector)
+        return UserProductCompetitiveDocument(
+            product_name=competitor_name,
+            user_product_competitive_documents=paths,
+            confidence_score=confidence_score,
         )
+
+    result_tasks = [
+        create_user_product_competitive_document(competitor_name, paths, q_vector)
         for competitor_name, paths in competitive_analysis_document_paths_dict.items()
     ]
+    user_product_competitive_documents = await async_gather_with_max_concurrent(
+        result_tasks, max_concurrent=5
+    )
+    return user_product_competitive_documents

@@ -14,20 +14,6 @@ import mimetypes
 import httpx
 from unittest.mock import patch
 
-# ─── 1  Runtime‑environment variables ────────────────────────────
-# os.environ.update(
-#     MONGO_URI="mongodb://localhost:27017",
-#     MONGO_DB="dummy",
-#     REDIS_HOST="localhost",
-#     REDIS_PORT="6379",
-#     REDIS_DB="0",
-#     MINIO_INTERNAL_ENDPOINT="https://s3.us-west-2.amazonaws.com",
-#     MINIO_ROOT_USER="MINIO_ROOT_USER_PLACEHOLDER",
-#     MINIO_ROOT_PASSWORD="MINIO_ROOT_PASSWORD_PLACEHOLDER",
-#     MINIO_BUCKET="nois2-192-dev",
-#     OPENAI_API_KEY="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",
-# )
-
 # ─── 2  Imports AFTER env vars are set ───────────────────────────
 import motor.motor_asyncio
 import beanie

@@ -113,13 +113,10 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     ])
     logger.info(f"Completed {len(competitive_analysis_details)} competitive analysis tasks")
 
-    CompetitiveAnalysisDetail.insert_many(competitive_analysis_details)
-    logger.info("Inserted competitive analysis details into database")
-
     competitive_analysis_list = [
         CompetitiveAnalysis(
             product_id=product_id,
-            competitive_analysis_detail_id=doc.id,
+            competitive_analysis_detail_id=str(doc.id),
             is_self_analysis=doc.product_simple_name == "Your Product",
         )
         for doc in competitive_analysis_details

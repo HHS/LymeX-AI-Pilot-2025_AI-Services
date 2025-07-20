@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Any, get_origin, get_args, Union
 
+# IGNORE THAT, PREFER EXPLICIT DEFAULTS
 class SafeBase(BaseModel):
     """
     A drop-in replacement for BaseModel that

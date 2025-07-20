@@ -17,7 +17,7 @@ async def extract_files_data(
     system_instruction: str,
     user_question: str,
     model_class: type[T],
-):
+) -> T:
     openai_client = get_openai_client()
     logger.info("Extracting data from files: {}", file_paths)
     if not file_paths:
@@ -45,10 +45,10 @@ async def extract_files_data(
                         {
                             "type": "input_text",
                             "text": """
-Please ensure that all fields are included and that their types match the schema.
-And the meaning should be the same as expressed in the comment of each field.
-Only return data that available in the documents. Do not infer or assume any data that is not present in the documents.
-Words like "unknown", "not available", "not applicable".. should be used if the data is not present in the documents.
+Ensure that all fields are included and that their data types match the defined schema.
+Each value should accurately reflect the meaning described in the corresponding field's comment.
+Only extract information explicitly found in the document—do not infer, assume, or generate content that is not present.
+If a field is missing or the data is unavailable, use the exact string "Not Available".
 """,
                         },
                     ],
@@ -76,9 +76,7 @@ Words like "unknown", "not available", "not applicable".. should be used if the 
         result = response.output_parsed
     finally:
         try:
-            await delete_files(
-                openai_client, [file.id for file in uploaded_files]
-            )
+            await delete_files(openai_client, [file.id for file in uploaded_files])
         except Exception as e:
             logger.error("Failed to delete files after extraction: {}", e)
 

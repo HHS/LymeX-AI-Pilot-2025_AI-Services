@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from fastapi import HTTPException
 from loguru import logger
 
 from src.modules.competitive_analysis.model import AnalyzeCompetitiveAnalysisProgress
@@ -40,20 +39,6 @@ class AnalyzeProgress:
         logger.info(
             f"Initialized progress for product {product_id} with total files {total_files}"
         )
-
-    async def increase(self, count: int = 1):
-        if not self.initialized:
-            logger.error("Progress not initialized. Call initialize() first.")
-            raise HTTPException(
-                status_code=500,
-                detail="Progress not initialized. Call initialize() first.",
-            )
-        logger.info(
-            f"Increasing processed_files by {count} for product_id={self.progress.reference_product_id}"
-        )
-        self.progress.processed_files += count
-        self.progress.updated_at = datetime.now(timezone.utc)
-        await self.progress.save()
 
     async def complete(self):
         if not self.progress:

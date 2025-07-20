@@ -6,10 +6,7 @@ RUN apt-get update && \
         libreoffice \
         fonts-dejavu-core \
         fonts-liberation \
-        ttf-mscorefonts-installer \
-        # Optional for better doc/pdf rendering:
         poppler-utils \
-        # Clean up to reduce image size:
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

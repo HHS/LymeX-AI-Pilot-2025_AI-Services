@@ -13,14 +13,14 @@ class AnalyzeProgress:
             f"Initializing progress for product_id={product_id}, total_files={total_files}"
         )
         existing_progress = await AnalyzeCompetitiveAnalysisProgress.find_one(
-            AnalyzeCompetitiveAnalysisProgress.reference_product_id == product_id,
+            AnalyzeCompetitiveAnalysisProgress.product_id == product_id,
         )
         if existing_progress:
             logger.info(
                 f"Existing progress found for product_id={product_id}, resetting processed_files to 0"
             )
             self.progress = existing_progress
-            self.progress.reference_product_id = product_id
+            self.progress.product_id = product_id
             self.progress.total_files = total_files
             self.progress.processed_files = 0
             self.progress.updated_at = datetime.now(timezone.utc)
@@ -29,7 +29,7 @@ class AnalyzeProgress:
                 f"No existing progress found for product_id={product_id}, creating new progress entry"
             )
             self.progress = AnalyzeCompetitiveAnalysisProgress(
-                reference_product_id=product_id,
+                product_id=product_id,
                 total_files=total_files,
                 processed_files=0,
                 updated_at=datetime.now(timezone.utc),
@@ -46,4 +46,4 @@ class AnalyzeProgress:
         self.progress.processed_files = self.progress.total_files
         self.progress.updated_at = datetime.now(timezone.utc)
         await self.progress.save()
-        logger.info(f"Progress complete for {self.progress.reference_product_id}")
+        logger.info(f"Progress complete for {self.progress.product_id}")

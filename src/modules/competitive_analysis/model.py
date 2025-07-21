@@ -21,6 +21,7 @@ class CompetitiveAnalysisDetail(Document, CompetitiveAnalysisDetailBase):
     product_simple_name: str
     confidence_score: float
     sources: list[str]
+    is_ai_generated: bool
     use_system_data: bool
 
     class Settings:
@@ -33,7 +34,7 @@ class CompetitiveAnalysisDetail(Document, CompetitiveAnalysisDetailBase):
 
 
 class AnalyzeCompetitiveAnalysisProgress(Document):
-    reference_product_id: str
+    product_id: str
     total_files: int
     processed_files: int
     updated_at: datetime

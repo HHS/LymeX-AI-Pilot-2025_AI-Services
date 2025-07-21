@@ -18,7 +18,7 @@ Schema Fields (summary):
 - Analytical Performance: reproducibility, precision, analytical_specificity_interference, cross_reactivity_study, interference_from_endogenous_analytes, assay_reportable_range, traceability_stability_expected_values, detection_limit, assay_cutoff
 - Clinical Performance: animal_testing_performance, method_comparison_sttt, method_comparison_mttt, clinical_sensitivity_specificity, fresh_frozen_samples_comparison_study, antibody_class_specificity, clinical_cutoff, expected_values_reference_range
 
-Ensure every field is included in the output, even if its value is "Not Available". Use only factual content from the document—no assumptions or extrapolations.
+Ensure every field is included in the output, even if its value is "Not Available", only "Not Available" do not use other phrases. Use only factual content from the document—no assumptions or extrapolations.
 """
 
 
@@ -44,6 +44,7 @@ async def create_competitive_analysis(
         product_simple_name=product_simple_name,
         confidence_score=confidence_score,
         sources=sources,
+        is_ai_generated=True,
         use_system_data=use_system_data,
         **result.model_dump(),
     )

@@ -88,6 +88,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
             document_paths=product_profile_document_paths,
             confidence_score=1,
             use_system_data=False,
+            sources=[doc.file_name for doc in product_profile_documents if doc.path],
         )
     ]
 
@@ -100,6 +101,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
             document_paths=[comp_doc.system_product_competitive_document],
             confidence_score=comp_doc.confidence_score,
             use_system_data=True,
+            sources=[comp_doc.system_product_competitive_document],
         )
         for comp_doc in system_competitor_documents
     ]
@@ -114,6 +116,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
             competitor_document_paths=comp_doc.user_product_competitive_documents,
             confidence_score=comp_doc.confidence_score,
             use_system_data=False,
+            sources=comp_doc.user_product_competitive_documents,
         )
         for comp_doc in user_competitor_documents
     ]

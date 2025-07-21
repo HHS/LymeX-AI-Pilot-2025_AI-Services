@@ -120,8 +120,19 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
     logger.info("🛠  Generating test-plan for {}", product_id)
 
     # ── Fetch profile for rule-engine (if you keep rules) ──
-    profile = await ProductProfile.find_one({"product_id": product_id})
-    rule_tests = _rule_engine(profile) if profile else {}
+    sleep_time = 5 
+    max_retries = 20 # 100 seconds max
+    for _ in range(max_retries):
+        profile = await ProductProfile.find_one({"product_id": product_id})
+        if profile:
+            break
+        logger.warning("⏳  Waiting for Product-Profile to be available...")
+        await asyncio.sleep(sleep_time)
+    else:
+        raise HTTPException(404, "Product-Profile not found for this product")
+
+
+    rule_tests = _rule_engine(profile)
 
     # ── Build assistant dynamically from TEST_CATALOGUE ────
     client = get_openai_client_sync()

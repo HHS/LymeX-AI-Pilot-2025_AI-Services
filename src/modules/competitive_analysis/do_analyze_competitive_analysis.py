@@ -1,5 +1,6 @@
 from pathlib import Path
 from loguru import logger
+from src.environment import environment
 from src.infrastructure.qdrant import embed_text
 from src.modules.competitive_analysis.create_competitive_analysis import (
     create_competitive_analysis,
@@ -43,7 +44,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
 
     system_competitor_documents = await download_system_product_competitive_documents(
         q_vector,
-        2,
+        environment.competitive_analysis_number_of_system_search_documents,
     )
     logger.info(
         f"Downloaded {len(system_competitor_documents)} system competitor documents for product_id={product_id}"

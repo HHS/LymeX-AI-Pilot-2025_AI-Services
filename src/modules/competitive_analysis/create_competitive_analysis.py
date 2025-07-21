@@ -32,8 +32,8 @@ async def create_competitive_analysis(
     document_paths: list[Path],
     confidence_score: float,
     use_system_data: bool,
+    sources: list[str],
 ) -> CompetitiveAnalysisDetail:
-    sources = [path.name for path in document_paths]
     result = await extract_files_data(
         file_paths=document_paths,
         system_instruction=system_instruction,

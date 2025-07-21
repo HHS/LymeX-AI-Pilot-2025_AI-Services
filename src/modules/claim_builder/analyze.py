@@ -1,67 +1,47 @@
+"""
+End-to-end analysis entry-point.
+"""
+
+from __future__ import annotations
+
 import asyncio
-from datetime import datetime, timezone
+import tempfile
 from pathlib import Path
+
+import httpx
 from fastapi import HTTPException
 from loguru import logger
-from pydantic import BaseModel
-from src.environment import environment
-from src.infrastructure.openai import get_openai_client
-from src.modules.claim_builder.model import AnalyzeClaimBuilderProgress, ClaimBuilder
+
 from src.infrastructure.redis import redis_client
-from src.modules.product_profile.storage import get_product_profile_documents
-from src.utils.parse_openai_json import parse_openai_json
+from src.services.openai.extract_files_data import extract_files_data  # existing helper
 from src.utils.prompt import model_to_schema
 
-
-class AnalyzeProgress:
-    initialized = False
-    progress: AnalyzeClaimBuilderProgress
-
-    async def initialize(self, product_id: str, total_files: int):
-        existing_progress = await AnalyzeClaimBuilderProgress.find_one(
-            AnalyzeClaimBuilderProgress.product_id == product_id,
-        )
-        if existing_progress:
-            self.progress = existing_progress
-            self.progress.product_id = product_id
-            self.progress.total_files = total_files
-            self.progress.processed_files = 0
-            self.progress.updated_at = datetime.now(timezone.utc)
-        else:
-            self.progress = AnalyzeClaimBuilderProgress(
-                product_id=product_id,
-                total_files=total_files,
-                processed_files=0,
-                updated_at=datetime.now(timezone.utc),
-            )
-        await self.progress.save()
-        self.initialized = True
-        logger.info(
-            f"Initialized progress for product {product_id} with total files {total_files}"
-        )
-
-    async def increase(self, count: int = 1):
-        if not self.initialized:
-            raise HTTPException(
-                status_code=500,
-                detail="Progress not initialized. Call initialize() first.",
-            )
-        self.progress.processed_files += count
-        self.progress.updated_at = datetime.now(timezone.utc)
-        await self.progress.save()
-
-    async def complete(self):
-        if not self.progress:
-            return
-        self.progress.processed_files = self.progress.total_files
-        self.progress.updated_at = datetime.now(timezone.utc)
-        await self.progress.save()
-        logger.info(f"Progress complete for {self.progress.product_id}")
+from src.modules.product_profile.model import ProductProfile
+from src.modules.product_profile.storage import get_product_profile_documents
+from .model import ClaimBuilder
+from .analyze_progress import AnalyzeProgress
 
 
-def build_claim_builder_instructions(ClaimBuilder: type[BaseModel]) -> str:
-    schema_str = model_to_schema(ClaimBuilder)
-    prompt = f"""
+# --------------------------------------------------------------------- #
+# helper utilities
+# --------------------------------------------------------------------- #
+
+
+async def _download_to_tmp(url: str, suffix: str = ".pdf") -> Path:
+    """Download *url* to a NamedTemporaryFile and return its Path."""
+    async with httpx.AsyncClient() as http:
+        resp = await http.get(url)
+        resp.raise_for_status()
+
+    tmp_fd, tmp_name = tempfile.mkstemp(suffix=suffix)
+    Path(tmp_name).write_bytes(resp.content)
+    return Path(tmp_name)
+
+
+def _build_system_prompt(model_cls: type[ClaimBuilder]) -> str:
+    """Generate an instruction block containing the JSON schema."""
+    schema = model_to_schema(model_cls)
+    return f"""
 You are an expert at extracting structured information from regulatory and product documentation for medical devices.
 
 Your task:
@@ -71,138 +51,108 @@ Your task:
 
 # ClaimBuilder JSON Schema
 
-{schema_str}
+{schema}
 
 # Output
 Return only the final JSON object matching the schema above, ready for deserialization into the ClaimBuilder model.
 
 Strictly output valid JSON.
-"""
-    return prompt.strip()
+""".strip()
+
+
+# --------------------------------------------------------------------- #
+# main orchestration
+# --------------------------------------------------------------------- #
 
 
 async def analyze_claim_builder(product_id: str) -> None:
-    lock = redis_client.lock(
-        f"NOIS2:Background:AnalyzeClaimBuilder:AnalyzeLock:{product_id}",
-        timeout=100,
-    )
-    lock_acquired = await lock.acquire(blocking=False)
-    if not lock_acquired:
-        logger.info(
-            f"Task is already running for product {product_id}. Skipping analysis."
-        )
+    """
+    Background task entry that:
+      • grabs IFU text,
+      • gathers supporting PDFs,
+      • calls OpenAI once (JSON-mode),
+      • saves/overwrites the ClaimBuilder document.
+    """
+
+    lock_key = f"NOIS2:Background:AnalyzeClaimBuilder:AnalyzeLock:{product_id}"
+    lock = redis_client.lock(lock_key, timeout=150)
+
+    if not await lock.acquire(blocking=False):
+        logger.info("[%s] another job in progress – skipping", product_id)
         return
 
-    docs = await get_product_profile_documents(product_id)
-    number_of_documents = len(docs)
-
-    progress = AnalyzeProgress()
-    await progress.initialize(product_id, 1)
-
     try:
-        client = get_openai_client()
-        file_ids: list[str] = []
+        # --------------------------------- gather data ---------------------------------- #
+        profile = await ProductProfile.find_one(ProductProfile.product_id == product_id)
+        if profile is None:
+            raise HTTPException(404, f"No ProductProfile found for '{product_id}'")
 
-        for doc in docs:
-            path = Path(doc.path)
-            uploaded = await client.files.create(file=path, purpose="assistants")
-            file_ids.append(uploaded.id)
-            logger.info(f"Uploaded {doc.file_name} as {uploaded.id}")
-
-        function_schema = ClaimBuilder.model_json_schema(by_alias=True)
-
-        assistant = await client.beta.assistants.create(
-            instructions=build_claim_builder_instructions(ClaimBuilder),
-            model=environment.openai_model,
-            tools=[
-                {"type": "file_search"},
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "answer_about_pdf",
-                        "description": "Return a JSON matching ClaimBuilder schema.",
-                        "parameters": function_schema,
-                    },
-                },
-            ],
-        )
-
-        thread = await client.beta.threads.create()
-        QUESTION = (
-            "Read all uploaded PDF documents and extract all relevant information. "
-            "Return a JSON object matching the ClaimBuilder schema (structure provided in your system instructions). "
-            "Include as much detail as possible."
-        )
-        await client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=QUESTION,
-            attachments=[
-                {"file_id": fid, "tools": [{"type": "file_search"}]} for fid in file_ids
-            ],
-        )
-
-        run = await client.beta.threads.runs.create(
-            thread_id=thread.id, assistant_id=assistant.id
-        )
-        for _ in range(60):
-            run = await client.beta.threads.runs.retrieve(
-                thread_id=thread.id, run_id=run.id
+        ifu_text: str | None = getattr(profile, "instructions_for_use", None)
+        if not ifu_text:
+            raise HTTPException(
+                422,
+                "ProductProfile.instructions_for_use is empty - cannot analyse IFU",
             )
-            if run.status == "completed":
-                break
-            if run.status == "failed":
-                logger.error(f"Assistant run failed: {run.error}")
-                raise HTTPException(502, "Assistant failed")
-            if run.status == "requires_action":
-                tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                tool_outputs = [
-                    {"tool_call_id": tc.id, "output": ""} for tc in tool_calls
-                ]
-                run = await client.beta.threads.runs.submit_tool_outputs(
-                    thread_id=thread.id,
-                    run_id=run.id,
-                    tool_outputs=tool_outputs,
-                )
-            await asyncio.sleep(5)
 
-        # Retrieve assistant message
-        msgs = await client.beta.threads.messages.list(thread_id=thread.id)
-        result_text = None
-        for msg in msgs.data:
-            if msg.role == "assistant":
-                result_text = msg.content[0].text.value
-                break
-        if not result_text:
-            raise HTTPException(502, "No assistant response found.")
+        docs = await get_product_profile_documents(product_id)
 
-        claim_builder_dict = parse_openai_json(result_text)
+        # Prefer local cached path if storage layer provides it; otherwise download
+        file_paths: list[Path] = []
+        for d in docs:
+            if getattr(d, "path", None):
+                file_paths.append(Path(d.path))
+            else:
+                file_paths.append(await _download_to_tmp(d.url))
 
-        # Cleanup assistant and files
-        try:
-            await client.beta.assistants.delete(assistant.id)
-        except Exception:
-            pass
-        for fid in file_ids:
-            try:
-                await client.files.delete(fid)
-            except Exception:
-                pass
+        # --------------------------------- progress doc --------------------------------- #
+        progress = AnalyzeProgress()
+        await progress.init(product_id=product_id, total_files=len(file_paths))
 
-        await ClaimBuilder.find(ClaimBuilder.product_id == product_id).delete_many()
-        record = {**claim_builder_dict, "product_id": product_id}
-        claim_builder = ClaimBuilder(**record)
-        for draft in claim_builder.draft:
-            draft.updated_by = "AI"
-        await claim_builder.save()
-        logger.info(
-            f"Analyzed product profile for product: {product_id}, including {number_of_documents} documents."
+        # --------------------------------- OpenAI call ---------------------------------- #
+        system_prompt = _build_system_prompt(ClaimBuilder)
+        """user_msg = (
+            f"Below is the full IFU text for product **{product_id}**:\n\n{ifu_text}\n\n"
+            "Please analyse the IFU and all attached PDFs."
         )
+        """
+        user_msg =(
+            f"You are reviewing the following Instructions-for-Use (IFU) for "
+            f"product **{product_id}**:\n\n"
+            "```text\n"
+            f"{ifu_text}\n"
+            "```\n\n"
+            "• Identify every issue (missing element, clarity, refactoring). "
+            "  **Severity must be exactly `LOW`, `MEDIUM`, or `CRITICAL`.** "           # to prevent wrong data
+            "• Detect conflicts inside the IFU and against the PDFs if relevant. "
+            "• Detect any phrase conflicts in refrence to regulatory standards."
+            "Return a **single** JSON object that exactly matches the "
+            "`ClaimBuilder` schema provided earlier.  No extra keys, "
+            "no markdown, valid JSON only."
+        )
+        
+        result: ClaimBuilder = await extract_files_data(
+            file_paths=file_paths,
+            system_instruction=system_prompt,
+            user_question=user_msg,
+            model_class=ClaimBuilder,
+        )
+
+        # --------------------------------- DB insert ------------------------------------ #
+        # clean old doc then insert the new one so _id stays stable
+        await ClaimBuilder.find(ClaimBuilder.product_id == product_id).delete_many()
+
+        result.product_id = product_id
+        result.is_user_input = False  # mark as AI analysis complete
+        await result.save()
+
         await progress.complete()
+        logger.success("ClaimBuilder saved for %s", product_id)
 
     except Exception as exc:
-        logger.error(f"Error analyzing {product_id}: {exc}")
+        logger.error("ClaimBuilder analysis failed for %s: %s", product_id, exc)
         raise
     finally:
-        await lock.release()
-        logger.info(f"Released lock for product {product_id}")
+        try:
+            await lock.release()
+        except Exception:
+            pass

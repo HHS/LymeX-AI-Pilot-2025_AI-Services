@@ -1,8 +1,8 @@
 import asyncio
-import logging
 from pathlib import Path
-
+from loguru import logger
 from fpdf import FPDF  # pip install fpdf
+from openpyxl import load_workbook
 
 # ---------------------- Extension Sets ---------------------- #
 text_file_extensions = [".txt", ".md", ".csv", ".json"]
@@ -18,9 +18,22 @@ SUPPORTED_FILE_EXTENSIONS = [
     *presentation_file_extensions,
 ]
 
-# ---------------------- Logging Setup ---------------------- #
-logger = logging.getLogger("file2pdf")
-logger.setLevel(logging.INFO)
+
+def autofit_excel_columns(path):
+    wb = load_workbook(path)
+    for ws in wb.worksheets:
+        for col in ws.columns:
+            max_length = 0
+            col_letter = col[0].column_letter
+            for cell in col:
+                try:
+                    cell_length = len(str(cell.value))
+                    if cell_length > max_length:
+                        max_length = cell_length
+                except:
+                    pass
+            ws.column_dimensions[col_letter].width = max_length + 2  # Add some padding
+    wb.save(path)
 
 
 # ---------------------- Main Entry ---------------------- #
@@ -30,26 +43,55 @@ async def convert_supported_file_extension_to_pdf(file_path: Path) -> Path:
     If already a PDF, return the original path.
     """
     ext = file_path.suffix.lower()
-    logger.info(f"Converting {file_path} (type: {ext}) to PDF")
+
     if ext == ".pdf":
         return file_path
+
+    logger.info(f"Converting {file_path} (type: {ext}) to PDF")
+
+    pdf_path = file_path.with_suffix(".pdf")
+    # Create empty PDF with value is 1 as a lock and make other processes wait and get result
+    # not to convert the same file multiple times
+    lock_value = "1"
+    if pdf_path.exists():
+        logger.info(f"PDF already exists: {pdf_path}")
+        retries = 10  # Wait for 10 seconds for the file to be ready
+        for _ in range(retries):
+            # Check if the file is no longer a lock file by verifying its size is greater than 1 byte
+            if pdf_path.stat().st_size > len(lock_value):
+                logger.info(f"PDF file {pdf_path} is ready.")
+                return pdf_path
+            logger.info(
+                f"Waiting for PDF file {pdf_path} to be ready...  Retrying {_ + 1} times..."
+            )
+            await asyncio.sleep(1)
+        logger.error(
+            f"PDF file {pdf_path} still not ready after {retries} seconds, aborting conversion."
+        )
+    else:
+        pdf_path.write_text(lock_value)
+
     if ext in text_file_extensions:
-        return await convert_text_to_pdf(file_path)
+        await convert_text_to_pdf(file_path, pdf_path)
+        return pdf_path
     if ext in word_file_extensions:
-        return await convert_office_to_pdf(file_path)
+        await convert_office_to_pdf(file_path, pdf_path)
+        return pdf_path
     if ext in excel_file_extensions:
-        return await convert_office_to_pdf(file_path)
+        autofit_excel_columns(file_path)
+        await convert_office_to_pdf(file_path, pdf_path)
+        return pdf_path
     if ext in presentation_file_extensions:
-        return await convert_office_to_pdf(file_path)
+        await convert_office_to_pdf(file_path, pdf_path)
+        return pdf_path
     raise ValueError(f"Unsupported file type for conversion: {ext}")
 
 
 # ---------------------- Text/Markdown/CSV/JSON to PDF ---------------------- #
-async def convert_text_to_pdf(file_path: Path) -> Path:
+async def convert_text_to_pdf(file_path: Path, pdf_path: Path) -> None:
     """
     Convert a plain text, markdown, CSV, or JSON file to PDF.
     """
-    pdf_path = file_path.with_suffix(".pdf")
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -69,16 +111,18 @@ async def convert_text_to_pdf(file_path: Path) -> Path:
         logger.error(f"Failed to write PDF to {pdf_path}: {e}")
         raise
     logger.info(f"Converted {file_path} to {pdf_path}")
-    return pdf_path
 
 
 # ---------------------- Office File to PDF (using LibreOffice) ---------------------- #
-async def convert_office_to_pdf(file_path: Path, timeout: int = 60) -> Path:
+async def convert_office_to_pdf(
+    file_path: Path,
+    pdf_path: Path,
+    timeout: int = 60,
+) -> None:
     """
     Convert an office file (Word, Excel, PowerPoint) to PDF using LibreOffice CLI.
     """
     pdf_dir = file_path.parent
-    out_name = file_path.with_suffix(".pdf").name
     cmd = [
         "libreoffice",
         "--headless",
@@ -105,12 +149,10 @@ async def convert_office_to_pdf(file_path: Path, timeout: int = 60) -> Path:
         raise RuntimeError(
             f"LibreOffice failed (exit {proc.returncode}): {stderr.decode().strip()}"
         )
-    result_path = pdf_dir / out_name
-    if not result_path.exists():
-        logger.error(f"Expected output not found: {result_path}")
-        raise FileNotFoundError(f"Output PDF not found: {result_path}")
-    logger.info(f"Converted {file_path} to {result_path}")
-    return result_path
+    if not pdf_path.exists():
+        logger.error(f"Expected output not found: {pdf_path}")
+        raise FileNotFoundError(f"Output PDF not found: {pdf_path}")
+    logger.info(f"Converted {file_path} to {pdf_path}")
 
 
 # ---------------------- Example Usage ---------------------- #

@@ -234,5 +234,5 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
         updated_at=datetime.utcnow()
     ).insert()
 
-    logger.success("🎯 Test-plan stored with {} total tests",
+    logger.info("🎯 Test-plan stored with {} total tests",
                    sum(len(v) for v in merged.values()))

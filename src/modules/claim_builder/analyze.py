@@ -146,7 +146,7 @@ async def analyze_claim_builder(product_id: str) -> None:
         await result.save()
 
         await progress.complete()
-        logger.success("ClaimBuilder saved for %s", product_id)
+        logger.info("ClaimBuilder saved for %s", product_id)
 
     except Exception as exc:
         logger.error("ClaimBuilder analysis failed for %s: %s", product_id, exc)

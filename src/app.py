@@ -64,6 +64,13 @@ async def analyze_product_profile_handler(
     await analyze_product_profile(product_id)
 
 
+# @app.post("/analyze-regulatory-background")
+# async def analyze_regulatory_background_handler(
+#     product_id: str,
+# ) -> None:
+#     await analyze_regulatory_background(product_id)
+
+
 @app.post("/analyze-regulatory-pathway")
 async def analyze_regulatory_pathway_handler(
     product_id: str,

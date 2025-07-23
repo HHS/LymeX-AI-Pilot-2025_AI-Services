@@ -201,3 +201,8 @@ class CompetitiveAnalysisDetailBase:
 
 
 class CompetitiveAnalysisDetailSchema(BaseModel, CompetitiveAnalysisDetailBase): ...
+
+
+class CompetitiveAnalysisSource(BaseModel):
+    name: str = Field(..., description="Name of the source")
+    key: str = Field(..., description="S3 key for the source document")

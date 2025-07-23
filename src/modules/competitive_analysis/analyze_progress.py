@@ -47,3 +47,11 @@ class AnalyzeProgress:
         self.progress.updated_at = datetime.now(timezone.utc)
         await self.progress.save()
         logger.info(f"Progress complete for {self.progress.product_id}")
+
+    async def err(self):
+        if not self.progress:
+            return
+        self.progress.processed_files = -1
+        self.progress.updated_at = datetime.now(timezone.utc)
+        await self.progress.save()
+        logger.error(f"Progress marked as errored for {self.progress.product_id}")

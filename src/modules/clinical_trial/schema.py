@@ -8,4 +8,3 @@ class ClinicalTrialStatus(str, Enum):
     RECRUITING = "recruiting"
     ACTIVE = "active"
     COMPLETED = "completed"
-

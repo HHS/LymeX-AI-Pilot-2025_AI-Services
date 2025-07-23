@@ -20,11 +20,10 @@ async def analyze_competitive_analysis(product_id: str) -> None:
         await progress.initialize(product_id, total_files=1)
         try:
             await do_analyze_competitive_analysis(product_id)
+            await progress.complete()
         except Exception as exc:
             logger.error(f"Error analyzing {product_id}: {exc}")
-            raise
-        finally:
-            await progress.complete()
+            await progress.err()
 
     except Exception as exc:
         logger.error(f"Error analyzing {product_id}: {exc}")

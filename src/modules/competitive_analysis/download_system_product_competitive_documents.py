@@ -13,6 +13,7 @@ class SystemProductCompetitiveDocument(BaseModel):
     product_name: str
     system_product_competitive_document: Path
     confidence_score: float
+    key: str  # S3 key for the document
 
 
 async def download_system_product_competitive_documents(
@@ -33,13 +34,13 @@ async def download_system_product_competitive_documents(
                 f"/tmp/system_competitor_documents/{doc_.payload.get('filename', 'Unknown')}"
             ),
             confidence_score=doc_.score,
+            key=f"{system_data_folder}/{doc_.payload.get('filename', 'Unknown')}",
         )
         for doc_ in similar_docs
     ]
     for doc in system_competitor_documents:
-        key = f"{system_data_folder}/{doc.system_product_competitive_document.name}"
-        logger.info(f"Downloading competitor document from MinIO with key={key}")
-        raw_data = await get_object(key)
+        logger.info(f"Downloading competitor document from MinIO with key={doc.key}")
+        raw_data = await get_object(doc.key)
         doc.system_product_competitive_document.parent.mkdir(
             parents=True, exist_ok=True
         )

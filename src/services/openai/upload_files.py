@@ -32,10 +32,12 @@ async def upload_files(
 ) -> list[FileObject]:
     logger.info(f"Starting upload of {len(file_paths)} files with purpose: {purpose}")
     logger.info(f"File paths: {json.dumps([i.name for i in file_paths])}")
-    converted_file_paths = [
-        await convert_supported_file_extension_to_pdf(file_path)
-        for file_path in file_paths
+    converted_file_paths_task = [
+        convert_supported_file_extension_to_pdf(file_path) for file_path in file_paths
     ]
+    converted_file_paths = await async_gather_with_max_concurrent(
+        converted_file_paths_task, max_concurrent=10
+    )
     upload_tasks = [
         upload_file(openai_client, converted_file_path, purpose)
         for converted_file_path in converted_file_paths

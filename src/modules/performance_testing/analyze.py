@@ -54,20 +54,20 @@ class AnalyzePTProgress:
     def __init__(self) -> None:
         self.doc: AnalyzePerformanceTestingProgress | None = None
 
-    async def init(self, product_id: str, total_sections: int) -> None:
+    async def init(self, product_id: str, total_files: int) -> None:
         now = datetime.now(timezone.utc)
         existing = await AnalyzePerformanceTestingProgress.find_one(
             AnalyzePerformanceTestingProgress.product_id == product_id
         )
         if existing:
-            existing.total_sections = total_sections
+            existing.total_files = total_files
             # existing.processed_files  = 0
             existing.updated_at = now
             self.doc = existing
         else:
             self.doc = AnalyzePerformanceTestingProgress(
                 product_id=product_id,
-                total_sections=total_sections,
+                total_files=total_files,
                 # processed_files= 0,
                 updated_at=now,
             )
@@ -83,14 +83,14 @@ class AnalyzePTProgress:
     async def done(self) -> None:
         if not self.doc:
             return
-        self.doc.processed_sections = self.doc.total_sections
+        self.doc.processed_files = self.doc.total_files
         self.doc.updated_at = datetime.now(timezone.utc)
         await self.doc.save()
 
     async def err(self) -> None:
         if not self.doc:
             return
-        self.doc.processed_sections = -1
+        self.doc.processed_files = -1
         self.doc.updated_at = datetime.now(timezone.utc)
         await self.doc.save()
         logger.error("Progress marked as errored for {}", self.doc.product_id)
@@ -175,14 +175,16 @@ async def _assistant_id(client) -> str:
         "submit_cyber_section": CyberSecurity,
     }
     for name, cls in mapping.items():
-        tools.append({
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": f"Return {cls.__name__} JSON.",
-                "parameters": cls.model_json_schema(by_alias=True),
-            },
-        })
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": f"Return {cls.__name__} JSON.",
+                    "parameters": cls.model_json_schema(by_alias=True),
+                },
+            }
+        )
 
     assistant = client.beta.assistants.create(
         name="Performance‑Testing extractor",
@@ -242,10 +244,12 @@ async def _generic_extract(
                         record = _robust_json(arg) if isinstance(arg, str) else arg
                     outs.append({"tool_call_id": tc.id, "output": "received"})
                 elif tc.type == "file_search":
-                    outs.append({
-                        "tool_call_id": tc.id,
-                        "output": {"data": [{"page": 1, "snippet": ""}]},
-                    })
+                    outs.append(
+                        {
+                            "tool_call_id": tc.id,
+                            "output": {"data": [{"page": 1, "snippet": ""}]},
+                        }
+                    )
             client.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread.id, run_id=run.id, tool_outputs=outs
             )
@@ -423,7 +427,7 @@ async def analyze_performance_testing(
             mapping = full_mapping  # legacy: run all
 
         # initialise progress BEFORE starting extraction
-        await progress.init(product_id, total_sections=len(mapping))
+        await progress.init(product_id, total_files=len(mapping))
 
         await PerformanceTesting.find(
             PerformanceTesting.product_id == product_id

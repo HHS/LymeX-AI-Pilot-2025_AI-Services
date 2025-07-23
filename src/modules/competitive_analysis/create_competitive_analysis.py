@@ -1,6 +1,9 @@
 from pathlib import Path
 from src.modules.competitive_analysis.model import CompetitiveAnalysisDetail
-from src.modules.competitive_analysis.schema import CompetitiveAnalysisDetailSchema, CompetitiveAnalysisSource
+from src.modules.competitive_analysis.schema import (
+    CompetitiveAnalysisDetailSchema,
+    CompetitiveAnalysisSource,
+)
 from src.services.openai.extract_files_data import extract_files_data
 
 

@@ -129,10 +129,13 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
             competitor_document_paths=comp_docs.user_product_competitive_documents,
             confidence_score=comp_docs.confidence_score,
             use_system_data=False,
-            sources=[CompetitiveAnalysisSource(
+            sources=[
+                CompetitiveAnalysisSource(
                     name=comp_docs.system_product_competitive_document.name,
                     key=comp_docs.key,
-                ) for comp_doc in comp_docs.user_product_competitive_documents],
+                )
+                for comp_doc in comp_docs.user_product_competitive_documents
+            ],
         )
         for comp_docs in user_competitor_documents
     ]
@@ -163,13 +166,15 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
 
     # --- RUN ALL TASKS IN PARALLEL ---
     logger.info("Running all competitive analysis tasks in parallel")
-    competitive_analysis_details: list[
-        CompetitiveAnalysisDetail
-    ] = await async_gather_with_max_concurrent([
-        *self_tasks,
-        *system_tasks,
-        *user_tasks,
-    ])
+    competitive_analysis_details: list[CompetitiveAnalysisDetail] = (
+        await async_gather_with_max_concurrent(
+            [
+                *self_tasks,
+                *system_tasks,
+                *user_tasks,
+            ]
+        )
+    )
     logger.info(
         f"Completed {len(competitive_analysis_details)} competitive analysis tasks"
     )

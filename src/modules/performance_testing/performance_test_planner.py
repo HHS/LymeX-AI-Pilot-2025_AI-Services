@@ -29,8 +29,9 @@ from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.product_profile.model import ProductProfile  # for rule engine
 
 # we will reuse the storage layer that already exists for Product-Profile
-from src.modules.product_profile.storage  import get_product_profile_documents
+from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.upload_helpers import upload_via_url
+
 
 # ─────────────────────────────────────────────────────────────
 # 1.  Helper: simple rule-engine (cheap heuristics first)
@@ -42,7 +43,7 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 
     def add(section: str, *codes: str):
         out.setdefault(section, []).extend(codes)
-    
+
     add("analytical", "precision", "linearity", "sensitivity")
     add("clinical", "clin_sens_spec")
     if getattr(profile, "contains_software", False):
@@ -59,12 +60,12 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 # ─────────────────────────────────────────────────────────────
 # 2.  Helper: poll assistant until function JSON is returned
 # ─────────────────────────────────────────────────────────────
-async def _poll_function_json(client, thread_id: str, run_id: str,
-                              function_name: str) -> dict:
+async def _poll_function_json(
+    client, thread_id: str, run_id: str, function_name: str
+) -> dict:
     """Wait until the assistant calls *function_name* and return its arguments."""
     for _ in range(120):
-        run = client.beta.threads.runs.retrieve(thread_id=thread_id,
-                                                run_id=run_id)
+        run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run_id)
 
         if run.status == "requires_action":
             tool_calls = run.required_action.submit_tool_outputs.tool_calls
@@ -81,10 +82,12 @@ async def _poll_function_json(client, thread_id: str, run_id: str,
 
                 elif tc.type == "file_search":
                     # --- return an empty stub so the assistant knows the call succeeded
-                    outs.append({
-                        "tool_call_id": tc.id,
-                        "output": {"data": [{"page": 1, "snippet": ""}]},
-                    })
+                    outs.append(
+                        {
+                            "tool_call_id": tc.id,
+                            "output": {"data": [{"page": 1, "snippet": ""}]},
+                        }
+                    )
 
             # >>> Submit *all* the collected outputs in one shot
             if outs:
@@ -108,20 +111,23 @@ async def _poll_function_json(client, thread_id: str, run_id: str,
 # ─────────────────────────────────────────────────────────────
 # 3.  Public entry point
 # ─────────────────────────────────────────────────────────────
-async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,) -> None:
+async def create_plan(
+    product_id: str,
+    profile_pdf_ids: list[str] | None = None,
+) -> None:
     """Analyse the Product-Profile PDF + rule engine → store PerformanceTestPlan.
 
     1. If `profile_pdf_ids` are supplied (fast-path from UI) - use them.
     2. Otherwise pull *all* Product-Profile PDFs from MinIO, upload to
        OpenAI, and use those uploads.
-        
+
     """
 
     logger.info("🛠  Generating test-plan for {}", product_id)
 
     # ── Fetch profile for rule-engine (if you keep rules) ──
-    sleep_time = 5 
-    max_retries = 20 # 100 seconds max
+    sleep_time = 5
+    max_retries = 20  # 100 seconds max
     for _ in range(max_retries):
         profile = await ProductProfile.find_one({"product_id": product_id})
         if profile:
@@ -130,7 +136,6 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
         await asyncio.sleep(sleep_time)
     else:
         raise HTTPException(404, "Product-Profile not found for this product")
-
 
     rule_tests = _rule_engine(profile)
 
@@ -141,33 +146,37 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
         name="Performance Test Planner",
         model=environment.openai_model,
         instructions=(
-             "You are an FDA regulatory strategist.  ALWAYS respond by calling the "
-        "function **return_test_plan** with *one* argument named "
-        "`required_tests` that maps section keys to arrays of canonical test "
-        "codes.  Optionally include a `rationale` string.  Do **not** add any "
-        "extra keys or free-text answers.\n\n"
-        "Allowed section keys and test codes:\n"
-        + json.dumps(TEST_CATALOGUE, indent=2)
+            "You are an FDA regulatory strategist.  ALWAYS respond by calling the "
+            "function **return_test_plan** with *one* argument named "
+            "`required_tests` that maps section keys to arrays of canonical test "
+            "codes.  Optionally include a `rationale` string.  Do **not** add any "
+            "extra keys or free-text answers.\n\n"
+            "Allowed section keys and test codes:\n"
+            + json.dumps(TEST_CATALOGUE, indent=2)
         ),
         tools=[
             {"type": "file_search"},
-            {"type": "function", "function": {
-                "name": "return_test_plan",
-                "description": "Return required performance tests.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "required_tests": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "array", "items": {"type": "string"}
-                            }
+            {
+                "type": "function",
+                "function": {
+                    "name": "return_test_plan",
+                    "description": "Return required performance tests.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "required_tests": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "rationale": {"type": "string"},
                         },
-                        "rationale": {"type": "string"}
+                        "required": ["required_tests"],
                     },
-                    "required": ["required_tests"]
                 },
-            }},
+            },
         ],
     )
 
@@ -195,44 +204,43 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
         role="user",
         content="Which *individual* performance tests are mandatory?",
         attachments=[
-                    {"file_id": fid,
-                      "tools":[{"type":"file_search"}]}
-                    for fid in profile_pdf_ids#[:10]  
-                    ],
+            {"file_id": fid, "tools": [{"type": "file_search"}]}
+            for fid in profile_pdf_ids  # [:10]
+        ],
     )
 
-    run = client.beta.threads.runs.create(thread_id=thread.id,
-                                          assistant_id=assistant.id)
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id, assistant_id=assistant.id
+    )
 
-    llm_out = await _poll_function_json(client, thread.id, run.id,
-                                        "return_test_plan")
+    llm_out = await _poll_function_json(client, thread.id, run.id, "return_test_plan")
     # debugging
-    logger.debug("🔍 Raw planner output:\n{}",
-             json.dumps(llm_out, indent=2, ensure_ascii=False))
-    
+    logger.debug(
+        "🔍 Raw planner output:\n{}", json.dumps(llm_out, indent=2, ensure_ascii=False)
+    )
+
     llm_tests: Dict[str, List[str]] = llm_out["required_tests"]
     rationale: str | None = llm_out.get("rationale")
 
     # ── Merge rule-engine & LLM (union) ─────────────────────
     merged: Dict[str, List[str]] = {}
     for sec, tests in TEST_CATALOGUE.items():
-        merged[sec] = sorted(
-            set(rule_tests.get(sec, [])) | set(llm_tests.get(sec, []))
-        )
+        merged[sec] = sorted(set(rule_tests.get(sec, [])) | set(llm_tests.get(sec, [])))
 
     # ── Save / replace plan in DB ───────────────────────────
     """await PerformanceTestPlan.find_one(
         {"product_id": product_id}).delete()  # idempotent"""
     existing_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
-    if existing_doc:                       # None if no previous plan
-        await existing_doc.delete()        # async method on the document
-    
+    if existing_doc:  # None if no previous plan
+        await existing_doc.delete()  # async method on the document
+
     await PerformanceTestPlan(
         product_id=product_id,
         required_tests=merged,
         rationale=rationale,
-        updated_at=datetime.utcnow()
+        updated_at=datetime.utcnow(),
     ).insert()
 
-    logger.info("🎯 Test-plan stored with {} total tests",
-                   sum(len(v) for v in merged.values()))
+    logger.info(
+        "🎯 Test-plan stored with {} total tests", sum(len(v) for v in merged.values())
+    )

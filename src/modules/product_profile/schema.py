@@ -55,7 +55,7 @@ class ProductProfileSchemaBase:
         "Not Available", description="Regulatory pathway for product approval"
     )
     regulatory_classifications: list[RegulatoryClassification] = Field(
-        default_factory=list,
+        [],
         description="List of regulatory classifications",
     )
     product_code: str = Field("Not Available", description="Product code")
@@ -75,26 +75,18 @@ class ProductProfileSchemaBase:
     performance_summary: str = Field(
         "Not Available", description="Overall Performance Summary"
     )
-    performance_references: list[str] = Field(
-        default_factory=list, description="Performance References"
-    )
+    performance_references: list[str] = Field([], description="Performance References")
     device_description: str = Field(
         "Not Available", description="Description of the device"
     )
-    features: list[Feature] = Field(
-        default_factory=list, description="List of device features"
-    )
-    claims: list[str] = Field(
-        default_factory=list, description="Claims made about the product"
-    )
-    conflict_alerts: list[str] = Field(
-        default_factory=list, description="Alerts for any conflicts"
-    )
+    features: list[Feature] = Field([], description="List of device features")
+    claims: list[str] = Field([], description="Claims made about the product")
+    conflict_alerts: list[str] = Field([], description="Alerts for any conflicts")
     test_principle: str = Field(
         "Not Available", description="Principle of the test performed by the device"
     )
     comparative_claims: list[str] = Field(
-        default_factory=list, description="Comparative claims with other products"
+        [], description="Comparative claims with other products"
     )
     fda_cleared: bool | None = Field(
         None, description="FDA clearance status (None if not applicable)"
@@ -109,7 +101,7 @@ class ProductProfileSchemaBase:
         "Not available", description="Description of instructions for use"
     )
     instructions_for_use: list[str] = Field(
-        default_factory=list, description="Step-by-step instructions for use"
+        [], description="Step-by-step instructions for use"
     )
     principle_of_operation: str = Field(
         "Not Available", description="Principle of Operation"
@@ -128,27 +120,23 @@ class ProductProfileSchemaBase:
     animal_derived_materials: str = Field(
         "Not Available", description="Animal Derived Materials"
     )
-    warnings: list[str] = Field(
-        default_factory=list, description="Warnings associated with the product"
-    )
-    limitations: list[str] = Field(
-        default_factory=list, description="Limitations of the product"
-    )
+    warnings: list[str] = Field([], description="Warnings associated with the product")
+    limitations: list[str] = Field([], description="Limitations of the product")
     contraindications: list[str] = Field(
-        default_factory=list, description="Contraindications for product use"
+        [], description="Contraindications for product use"
     )
     confidence_score: float = Field(
         0.0, description="Confidence score for the product profile"
     )
     sources: list[str] = Field(
-        default_factory=list,
+        [],
         description="Sources of information for the product profile",
     )
     speed: int = Field(-1, description="Speed")
     reliability: int = Field(-1, description="Reliability")
     price: int = Field(0, description="Price of the product")
     instructions: list[str] = Field(
-        default_factory=list, description="General instructions for the product"
+        [], description="General instructions for the product"
     )
     type_of_use: str = Field("Not Available", description="Type of use for the product")
     device_type: str = Field("Not Available", description="Type of device")

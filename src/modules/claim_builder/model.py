@@ -22,7 +22,7 @@ class ClaimBuilder(Document):
     missing_elements: list[MissingElement]
     risk_indicators: list[RiskIndicator]
     phrase_conflicts: list[PhraseConflict]
-    issues: list[Issue] = []                  #new
+    issues: list[Issue] = []  # new
     is_user_input: bool = False
     user_acceptance: bool = False
 

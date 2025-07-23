@@ -1,6 +1,9 @@
 from datetime import datetime
 from beanie import Document, PydanticObjectId
-from src.modules.competitive_analysis.schema import CompetitiveAnalysisDetailBase
+from src.modules.competitive_analysis.schema import (
+    CompetitiveAnalysisDetailBase,
+    CompetitiveAnalysisSource,
+)
 
 
 class CompetitiveAnalysis(Document):
@@ -20,7 +23,7 @@ class CompetitiveAnalysis(Document):
 class CompetitiveAnalysisDetail(Document, CompetitiveAnalysisDetailBase):
     product_simple_name: str
     confidence_score: float
-    sources: list[str]
+    sources: list[CompetitiveAnalysisSource]
     is_ai_generated: bool
     use_system_data: bool
 

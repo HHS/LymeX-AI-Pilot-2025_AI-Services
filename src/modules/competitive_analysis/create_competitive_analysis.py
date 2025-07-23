@@ -1,6 +1,9 @@
 from pathlib import Path
 from src.modules.competitive_analysis.model import CompetitiveAnalysisDetail
-from src.modules.competitive_analysis.schema import CompetitiveAnalysisDetailSchema
+from src.modules.competitive_analysis.schema import (
+    CompetitiveAnalysisDetailSchema,
+    CompetitiveAnalysisSource,
+)
 from src.services.openai.extract_files_data import extract_files_data
 
 
@@ -32,7 +35,7 @@ async def create_competitive_analysis(
     document_paths: list[Path],
     confidence_score: float,
     use_system_data: bool,
-    sources: list[str],
+    sources: list[CompetitiveAnalysisSource],
 ) -> CompetitiveAnalysisDetail:
     result = await extract_files_data(
         file_paths=document_paths,

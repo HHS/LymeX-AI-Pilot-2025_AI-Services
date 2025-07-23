@@ -15,6 +15,7 @@ from src.modules.competitive_analysis.model import (
     CompetitiveAnalysis,
     CompetitiveAnalysisDetail,
 )
+from src.modules.competitive_analysis.schema import CompetitiveAnalysisSource
 from src.modules.index_system_data.summarize_files import summarize_files
 from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
@@ -88,7 +89,14 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
             document_paths=product_profile_document_paths,
             confidence_score=1,
             use_system_data=False,
-            sources=[doc.file_name for doc in product_profile_documents if doc.path],
+            sources=[
+                CompetitiveAnalysisSource(
+                    name=doc.file_name,
+                    key=doc.key,
+                )
+                for doc in product_profile_documents
+                if doc.path
+            ],
         )
     ]
 
@@ -101,7 +109,12 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
             document_paths=[comp_doc.system_product_competitive_document],
             confidence_score=comp_doc.confidence_score,
             use_system_data=True,
-            sources=[comp_doc.system_product_competitive_document.name],
+            sources=[
+                CompetitiveAnalysisSource(
+                    name=comp_doc.system_product_competitive_document.name,
+                    key=comp_doc.key,
+                )
+            ],
         )
         for comp_doc in system_competitor_documents
     ]
@@ -112,13 +125,19 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     )
     user_tasks = [
         create_competitive_analysis(
-            product_simple_name=comp_doc.product_name,
-            competitor_document_paths=comp_doc.user_product_competitive_documents,
-            confidence_score=comp_doc.confidence_score,
+            product_simple_name=comp_docs.product_name,
+            competitor_document_paths=comp_docs.user_product_competitive_documents,
+            confidence_score=comp_docs.confidence_score,
             use_system_data=False,
-            sources=[path.name for path in comp_doc.user_product_competitive_documents],
+            sources=[
+                CompetitiveAnalysisSource(
+                    name=comp_docs.system_product_competitive_document.name,
+                    key=comp_docs.key,
+                )
+                for comp_doc in comp_docs.user_product_competitive_documents
+            ],
         )
-        for comp_doc in user_competitor_documents
+        for comp_docs in user_competitor_documents
     ]
 
     # --- REMOVE FORMER COMPETITIVE ANALYSIS RECORDS ---
@@ -147,13 +166,15 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
 
     # --- RUN ALL TASKS IN PARALLEL ---
     logger.info("Running all competitive analysis tasks in parallel")
-    competitive_analysis_details: list[
-        CompetitiveAnalysisDetail
-    ] = await async_gather_with_max_concurrent([
-        *self_tasks,
-        *system_tasks,
-        *user_tasks,
-    ])
+    competitive_analysis_details: list[CompetitiveAnalysisDetail] = (
+        await async_gather_with_max_concurrent(
+            [
+                *self_tasks,
+                *system_tasks,
+                *user_tasks,
+            ]
+        )
+    )
     logger.info(
         f"Completed {len(competitive_analysis_details)} competitive analysis tasks"
     )

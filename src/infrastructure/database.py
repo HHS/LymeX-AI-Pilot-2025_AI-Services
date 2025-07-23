@@ -13,14 +13,20 @@ from src.modules.competitive_analysis.model import (
     CompetitiveAnalysis,
     CompetitiveAnalysisDetail,
 )
-from src.modules.performance_testing.model import AnalyzePerformanceTestingProgress, PerformanceTesting
+from src.modules.performance_testing.model import (
+    AnalyzePerformanceTestingProgress,
+    PerformanceTesting,
+)
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.product.model import Product
 from src.modules.product_profile.model import (
     AnalyzeProductProfileProgress,
     ProductProfile,
 )
-from src.modules.regulatory_pathway.model import AnalyzeRegulatoryPathwayProgress, RegulatoryPathway
+from src.modules.regulatory_pathway.model import (
+    AnalyzeRegulatoryPathwayProgress,
+    RegulatoryPathway,
+)
 from src.modules.test_comparison.model import (
     TestComparison,
 )

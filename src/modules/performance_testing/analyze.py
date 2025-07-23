@@ -411,7 +411,6 @@ async def analyze_performance_testing(product_id: str, attachment_ids: Optional[
         # ▲ 1) read or auto‑create the test‑plan
         plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
         if plan_doc is None:
-            print("-----------------------------------CALLING CREATE PLAN------------------------------------")
             await create_plan(product_id)                       # on‑the‑fly generation
             plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
 

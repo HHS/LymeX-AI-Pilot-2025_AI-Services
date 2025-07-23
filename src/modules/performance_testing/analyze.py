@@ -23,6 +23,7 @@ from src.modules.performance_testing.storage import (
     get_performance_testing_documents,  # ← new
 )
 
+from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
 from src.utils.parse_openai_json import parse_openai_json
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.performance_testing.performance_test_planner import create_plan
@@ -65,14 +66,14 @@ class AnalyzePTProgress:
         )
         if existing:
             existing.total_files = total_files
-            # existing.processed_files  = 0
+            existing.processed_files = 0
             existing.updated_at = now
             self.doc = existing
         else:
             self.doc = AnalyzePerformanceTestingProgress(
                 product_id=product_id,
                 total_files=total_files,
-                # processed_files= 0,
+                processed_files=0,
                 updated_at=now,
             )
         await self.doc.save()
@@ -179,16 +180,14 @@ async def _assistant_id(client) -> str:
         "submit_cyber_section": CyberSecurity,
     }
     for name, cls in mapping.items():
-        tools.append(
-            {
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": f"Return {cls.__name__} JSON.",
-                    "parameters": cls.model_json_schema(by_alias=True),
-                },
-            }
-        )
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": f"Return {cls.__name__} JSON.",
+                "parameters": cls.model_json_schema(by_alias=True),
+            },
+        })
 
     assistant = client.beta.assistants.create(
         name="Performance‑Testing extractor",
@@ -203,6 +202,7 @@ async def _assistant_id(client) -> str:
     )
     return assistant.id, mapping
 
+
 def _ensure_list(value: str | list | None) -> list[str]:
     """
     - None          → []
@@ -215,9 +215,10 @@ def _ensure_list(value: str | list | None) -> list[str]:
     if isinstance(value, list):
         return value
     # drop citation brackets and split on comma / semicolon
-    clean = re.sub(r"【.*?】", "", value)          # keeps your earlier `import re`
+    clean = re.sub(r"【.*?】", "", value)  # keeps your earlier `import re`
     parts = re.split(r"[;,]", clean)
     return [p.strip() for p in parts if p.strip()]
+
 
 # ───────── generic extractor ─────────────────────────────────
 async def _generic_extract(
@@ -263,12 +264,10 @@ async def _generic_extract(
                         record = _robust_json(arg) if isinstance(arg, str) else arg
                     outs.append({"tool_call_id": tc.id, "output": "received"})
                 elif tc.type == "file_search":
-                    outs.append(
-                        {
-                            "tool_call_id": tc.id,
-                            "output": {"data": [{"page": 1, "snippet": ""}]},
-                        }
-                    )
+                    outs.append({
+                        "tool_call_id": tc.id,
+                        "output": {"data": [{"page": 1, "snippet": ""}]},
+                    })
             client.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread.id, run_id=run.id, tool_outputs=outs
             )
@@ -316,30 +315,33 @@ async def _generic_extract(
 
     await doc.save()
 
-      # ────────── Push the extracted data back into the test‑plan ──────────
+    # ────────── Push the extracted data back into the test‑plan ──────────
     try:
         plan = await PerformanceTestPlan.find_one({"product_id": product_id})
         if plan:
             for card in plan.tests:
                 same_section = card.section_key == attr_name
-                same_code    = getattr(obj, "study_type", None) == card.test_code
+                same_code = getattr(obj, "study_type", None) == card.test_code
                 if same_section and (card.test_code is None or same_code):
                     # ▸ rationale / confidence
-                    card.ai_rationale = (getattr(obj, "discussion", None)
-                                         or getattr(obj, "conclusion", None))
+                    card.ai_rationale = getattr(obj, "discussion", None) or getattr(
+                        obj, "conclusion", None
+                    )
                     if getattr(obj, "confidence", None) is not None:
                         perc = int(obj.confidence * 100)
                         card.ai_confident = perc
                         card.confident_level = (
-                            PerformanceTestingConfidentLevel.HIGH   if perc >= 80 else
-                            PerformanceTestingConfidentLevel.MEDIUM if perc >= 50 else
-                            PerformanceTestingConfidentLevel.LOW
+                            PerformanceTestingConfidentLevel.HIGH
+                            if perc >= 80
+                            else PerformanceTestingConfidentLevel.MEDIUM
+                            if perc >= 50
+                            else PerformanceTestingConfidentLevel.LOW
                         )
                     # ▸ references / standards
-                    #refs = getattr(obj, "consensus_standards", [])
-                    #refs = _ensure_list(getattr(obj, "consensus_standards", None))
-                    #card.references           = refs
-                    #card.associated_standards = refs
+                    # refs = getattr(obj, "consensus_standards", [])
+                    # refs = _ensure_list(getattr(obj, "consensus_standards", None))
+                    # card.references           = refs
+                    # card.associated_standards = refs
                     raw = _ensure_list(getattr(obj, "consensus_standards", None))
                     # turn each string into the required Pydantic objects
                     card.references = [
@@ -348,7 +350,7 @@ async def _generic_extract(
                     card.associated_standards = [
                         PerformanceTestingAssociatedStandard(name=s) for s in raw
                     ]
-                    
+
                     # ▸ status
                     card.status = ModuleStatus.COMPLETED
                     break
@@ -357,9 +359,6 @@ async def _generic_extract(
         logger.warning("⚠️  Could not enrich PerformanceTestPlan: {}", exc)
 
     logger.info("✅ Saved {} section for {}", tool_name, product_id)
-
-    if progress:  # tick AFTER successful save
-        await progress.tick()
 
 
 # ───────── thin wrappers for each questionnaire section ──────
@@ -402,11 +401,26 @@ async def _run_all_sections(client, aid, mapping, pid, atts):
         "CyberSecurity": "cybersecurity",
     }
 
-    for tool, cls in mapping.items():
-        # attr = cls.__name__.replace("Study", "").replace("Validation", "").lower()
-        attr = attr_map[cls.__name__]
-        attr = attr if attr != "shelflife" else "shelf_life"
-        await _generic_extract(client, aid, pid, atts, tool, cls, attr, prompts[tool])
+    # for tool, cls in mapping.items():
+    #     attr = attr_map[cls.__name__]
+    #     attr = attr if attr != "shelflife" else "shelf_life"
+    #     await _generic_extract(client, aid, pid, atts, tool, cls, attr, prompts[tool])
+
+    await async_gather_with_max_concurrent([
+        _generic_extract(
+            client,
+            aid,
+            pid,
+            atts,
+            tool,
+            cls,
+            attr_map[cls.__name__]
+            if attr_map[cls.__name__] != "shelflife"
+            else "shelf_life",
+            prompts[tool],
+        )
+        for tool, cls in mapping.items()
+    ])
 
 
 # ───── helper used to map tool-names → top-level “section keys” ─────
@@ -436,19 +450,22 @@ async def analyze_performance_testing(
         # ▲ 1) read or auto‑create the test‑plan
         plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
         if plan_doc is None:
-            await create_plan(product_id)                       # on‑the‑fly generation
+            await create_plan(product_id)  # on‑the‑fly generation
             plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
 
         # build a set of section keys that actually contain cards
         if plan_doc and plan_doc.tests:
             active_sections = {card.section_key for card in plan_doc.tests}
         else:
-            active_sections = None        # ← means “run everything” when plan empty
+            active_sections = None  # ← means “run everything” when plan empty
 
         # client = get_openai_client_sync()
         # aid, full_mapping = await _assistant_id(client)
 
         # pull doc list from MinIO if caller didn’t hand us explicit IDs
+
+        # initialise progress BEFORE starting extraction
+        await progress.init(product_id, total_files=1)
         if not attachment_ids:
             docs = await get_performance_testing_documents(product_id)
 
@@ -458,6 +475,7 @@ async def analyze_performance_testing(
                     f"No performance-testing documents found for {product_id}; "
                     "AI processing can’t be done."
                 )
+                await progress.done()
                 return None  # signals None to the caller
 
             client = get_openai_client_sync()  # need client early
@@ -488,9 +506,6 @@ async def analyze_performance_testing(
             }
         else:
             mapping = full_mapping  # no plan → run every section
-        
-        # initialise progress BEFORE starting extraction
-        await progress.init(product_id, total_files=len(mapping))
 
         await PerformanceTesting.find(
             PerformanceTesting.product_id == product_id
@@ -499,7 +514,7 @@ async def analyze_performance_testing(
 
         await progress.done()  # mark 100 %
     except Exception as exc:
-        logger.error("Performance testing analysis failed for %s: %s", product_id, exc)
+        logger.error(f"Performance testing analysis failed for {product_id}: {exc}")
         await progress.err()
     finally:
         await lock.release()

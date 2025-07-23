@@ -83,7 +83,18 @@ async def analyze_claim_builder(product_id: str) -> None:
 
     try:
         # --------------------------------- gather data ---------------------------------- #
-        profile = await ProductProfile.find_one(ProductProfile.product_id == product_id)
+        sleep_time = 5
+        max_retries = 20  # 100 seconds max
+        for _ in range(max_retries):
+            profile = await ProductProfile.find_one(
+                ProductProfile.product_id == product_id
+            )
+            if profile:
+                break
+            logger.warning("⏳  Waiting for Product-Profile to be available...")
+            await asyncio.sleep(sleep_time)
+        else:
+            raise HTTPException(404, "Product-Profile not found for this product")
         if profile is None:
             raise HTTPException(404, f"No ProductProfile found for '{product_id}'")
 
@@ -115,21 +126,21 @@ async def analyze_claim_builder(product_id: str) -> None:
             "Please analyse the IFU and all attached PDFs."
         )
         """
-        user_msg =(
+        user_msg = (
             f"You are reviewing the following Instructions-for-Use (IFU) for "
             f"product **{product_id}**:\n\n"
             "```text\n"
             f"{ifu_text}\n"
             "```\n\n"
             "• Identify every issue (missing element, clarity, refactoring). "
-            "  **Severity must be exactly `LOW`, `MEDIUM`, or `CRITICAL`.** "           # to prevent wrong data
+            "  **Severity must be exactly `LOW`, `MEDIUM`, or `CRITICAL`.** "  # to prevent wrong data
             "• Detect conflicts inside the IFU and against the PDFs if relevant. "
             "• Detect any phrase conflicts in refrence to regulatory standards."
             "Return a **single** JSON object that exactly matches the "
             "`ClaimBuilder` schema provided earlier.  No extra keys, "
             "no markdown, valid JSON only."
         )
-        
+
         result: ClaimBuilder = await extract_files_data(
             file_paths=file_paths,
             system_instruction=system_prompt,
@@ -150,6 +161,7 @@ async def analyze_claim_builder(product_id: str) -> None:
 
     except Exception as exc:
         logger.error("ClaimBuilder analysis failed for %s: %s", product_id, exc)
+        await progress.err()
         raise
     finally:
         try:

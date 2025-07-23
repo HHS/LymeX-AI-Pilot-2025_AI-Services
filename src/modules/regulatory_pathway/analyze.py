@@ -21,11 +21,11 @@ async def analyze_regulatory_pathway(product_id: str) -> None:
         await progress.initialize(product_id, total_files=1)
         try:
             await do_analyze_regulatory_pathway(product_id)
+            await progress.complete()
         except Exception as exc:
             logger.error(f"Error analyzing {product_id}: {exc}")
+            await progress.err()
             raise
-        finally:
-            await progress.complete()
 
     except Exception as exc:
         logger.error(f"Error analyzing {product_id}: {exc}")

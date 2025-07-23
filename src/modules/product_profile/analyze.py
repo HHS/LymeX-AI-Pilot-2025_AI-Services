@@ -28,6 +28,7 @@ async def analyze_product_profile(product_id: str) -> None:
 
     except Exception as exc:
         logger.error(f"Error analyzing {product_id}: {exc}")
+        await progress.err()
         raise
 
     finally:

@@ -45,15 +45,6 @@ class AnalyzeProgress:
         await self._progress.save()
         logger.info("Progress initialised for {} ({} files)", product_id, total_files)
 
-    async def incr(self, n: int = 1) -> None:
-        """Increase *processed_files* and persist."""
-        if not self._progress:
-            raise HTTPException(500, "Progress not initialised")
-
-        self._progress.processed_files += n
-        self._progress.updated_at = datetime.now(timezone.utc)
-        await self._progress.save()
-
     async def complete(self) -> None:
         """Mark job as finished."""
         if self._progress:
@@ -61,3 +52,11 @@ class AnalyzeProgress:
             self._progress.updated_at = datetime.now(timezone.utc)
             await self._progress.save()
             logger.info("Progress complete for {}", self._progress.product_id)
+
+    async def err(self) -> None:
+        """Mark job as errored."""
+        if self._progress:
+            self._progress.processed_files = -1
+            self._progress.updated_at = datetime.now(timezone.utc)
+            await self._progress.save()
+            logger.error("Progress marked as errored for {}", self._progress.product_id)

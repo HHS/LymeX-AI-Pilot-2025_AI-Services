@@ -44,6 +44,10 @@ from src.modules.performance_testing.schema import (
     SterilityValidation,
     ShelfLife,
     CyberSecurity,
+    PerformanceTestingConfidentLevel,
+    ModuleStatus,
+    PerformanceTestingReference,
+    PerformanceTestingAssociatedStandard,
 )
 
 # ─────── Progress helper ──────────────────────────────────────── 
@@ -184,6 +188,22 @@ async def _assistant_id(client) -> str:
     )
     return assistant.id, mapping
 
+def _ensure_list(value: str | list | None) -> list[str]:
+    """
+    - None          → []
+    - "a, b; c"     → ["a", "b", "c"]
+    - already list  → unchanged
+    The regex also strips GPT citation marks like  .
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    # drop citation brackets and split on comma / semicolon
+    clean = re.sub(r"【.*?】", "", value)          # keeps your earlier `import re`
+    parts = re.split(r"[;,]", clean)
+    return [p.strip() for p in parts if p.strip()]
+
 # ───────── generic extractor ─────────────────────────────────
 async def _generic_extract(
     client,
@@ -271,6 +291,47 @@ async def _generic_extract(
         setattr(doc, attr_name, obj)
     
     await doc.save()
+
+      # ────────── Push the extracted data back into the test‑plan ──────────
+    try:
+        plan = await PerformanceTestPlan.find_one({"product_id": product_id})
+        if plan:
+            for card in plan.tests:
+                same_section = card.section_key == attr_name
+                same_code    = getattr(obj, "study_type", None) == card.test_code
+                if same_section and (card.test_code is None or same_code):
+                    # ▸ rationale / confidence
+                    card.ai_rationale = (getattr(obj, "discussion", None)
+                                         or getattr(obj, "conclusion", None))
+                    if getattr(obj, "confidence", None) is not None:
+                        perc = int(obj.confidence * 100)
+                        card.ai_confident = perc
+                        card.confident_level = (
+                            PerformanceTestingConfidentLevel.HIGH   if perc >= 80 else
+                            PerformanceTestingConfidentLevel.MEDIUM if perc >= 50 else
+                            PerformanceTestingConfidentLevel.LOW
+                        )
+                    # ▸ references / standards
+                    #refs = getattr(obj, "consensus_standards", [])
+                    #refs = _ensure_list(getattr(obj, "consensus_standards", None))
+                    #card.references           = refs
+                    #card.associated_standards = refs
+                    raw = _ensure_list(getattr(obj, "consensus_standards", None))
+                    # turn each string into the required Pydantic objects
+                    card.references = [
+                        PerformanceTestingReference(title=s) for s in raw
+                    ]
+                    card.associated_standards = [
+                        PerformanceTestingAssociatedStandard(name=s) for s in raw
+                    ]
+                    
+                    # ▸ status
+                    card.status = ModuleStatus.COMPLETED
+                    break
+            await plan.save()
+    except Exception as exc:
+        logger.warning("⚠️  Could not enrich PerformanceTestPlan: {}", exc)
+
     logger.info("✅ Saved {} section for {}", tool_name, product_id)
 
     if progress:                       # tick AFTER successful save
@@ -347,14 +408,18 @@ async def analyze_performance_testing(product_id: str, attachment_ids: Optional[
     num_files = -1
 
     try:
-        # ▲ 1) read plan (may be None)
+        # ▲ 1) read or auto‑create the test‑plan
         plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
         if plan_doc is None:
-            await create_plan(product_id)               # generate test plan on the fly
+            print("-----------------------------------CALLING CREATE PLAN------------------------------------")
+            await create_plan(product_id)                       # on‑the‑fly generation
             plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
-            #print("📝 NEW test‑plan:\n", plan_doc.model_dump_json(indent=2))
-        
-        required_tests = plan_doc.required_tests if plan_doc else None
+
+        # build a set of section keys that actually contain cards
+        if plan_doc and plan_doc.tests:
+            active_sections = {card.section_key for card in plan_doc.tests}
+        else:
+            active_sections = None        # ← means “run everything” when plan empty
 
         #client = get_openai_client_sync()
         #aid, full_mapping = await _assistant_id(client)
@@ -388,12 +453,15 @@ async def analyze_performance_testing(product_id: str, attachment_ids: Optional[
 
         aid, full_mapping = await _assistant_id(client)
 
-        # ▲ 2) filter mapping to sections present in the plan
-        if required_tests is not None:
-            mapping = {k: v for k, v in full_mapping.items()
-                       if required_tests.get(_section_key(k))}
+        # ▲ 2) filter mapping → only extractor tools we really need
+        if active_sections is not None:
+            mapping = {
+                k: v
+                for k, v in full_mapping.items()
+                if _section_key(k) in active_sections
+            }
         else:
-            mapping = full_mapping          # legacy: run all
+            mapping = full_mapping  # no plan → run every section
         
         # initialise progress BEFORE starting extraction
         await progress.init(product_id, total_sections=len(mapping))

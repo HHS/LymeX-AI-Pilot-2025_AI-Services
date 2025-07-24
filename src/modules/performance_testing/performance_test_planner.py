@@ -41,7 +41,33 @@ from src.modules.performance_testing.schema import (
 # we will reuse the storage layer that already exists for Product-Profile
 from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.upload_helpers import upload_via_url
-from src.utils.parse_openai_json import parse_openai_json   # tolerant helper
+from src.utils.parse_openai_json import parse_openai_json  # tolerant helper
+
+
+# ───────────────── tolerant JSON loader ────────────────────────
+def _robust_json(txt: str) -> dict:
+    """
+    1. try plain json.loads()
+    2. strip code fences / pick first balanced {...}
+    3. final fallback: parse_openai_json()  (very forgiving)
+    """
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        # common pattern: ```json … ```
+        if txt.startswith("```"):
+            txt = txt.strip("` \n")
+            if txt.lower().startswith("json"):
+                txt = txt[4:].lstrip()
+        # grab the first {...} block
+        m = re.search(r"\{.*\}", txt, flags=re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+        # last resort – very tolerant but slower
+        return parse_openai_json(txt)
 
 # ───────────────── tolerant JSON loader ────────────────────────
 def _robust_json(txt: str) -> dict:
@@ -111,22 +137,18 @@ async def _poll_function_json(
             for tc in tool_calls:
                 if tc.type == "function" and tc.function.name == function_name:
                     # --- capture the arguments we actually care about
-                    #raw = tc.function.arguments
-                    #fn_args = json.loads(raw) if isinstance(raw, str) else raw
+                    # raw = tc.function.arguments
+                    # fn_args = json.loads(raw) if isinstance(raw, str) else raw
                     raw = tc.function.arguments
-                    fn_args = (
-                        _robust_json(raw) if isinstance(raw, str) else raw
-                    )
+                    fn_args = _robust_json(raw) if isinstance(raw, str) else raw
                     outs.append({"tool_call_id": tc.id, "output": "received"})
 
                 elif tc.type == "file_search":
                     # --- return an empty stub so the assistant knows the call succeeded
-                    outs.append(
-                        {
-                            "tool_call_id": tc.id,
-                            "output": {"data": [{"page": 1, "snippet": ""}]},
-                        }
-                    )
+                    outs.append({
+                        "tool_call_id": tc.id,
+                        "output": {"data": [{"page": 1, "snippet": ""}]},
+                    })
 
             # >>> Submit *all* the collected outputs in one shot
             if outs:
@@ -188,24 +210,26 @@ async def create_plan(
                     "type": "object",
                     "properties": {
                         "section_key": {"type": "string"},
-                        "test_code":   {"type": "string"},
-                        "risk_level":  {"type": "string",
-                                        "enum": ["Low","Medium","High"]},
+                        "test_code": {"type": "string"},
+                        "risk_level": {
+                            "type": "string",
+                            "enum": ["Low", "Medium", "High"],
+                        },
                         "ai_confident": {"type": "integer"},
                         "ai_rationale": {"type": "string"},
-                        "references": {                     # NEW ▼
+                        "references": {  # NEW ▼
                             "type": "array",
                             "items": {
                                 "type": "object",
                                 "properties": {
                                     "title": {"type": "string"},
-                                    "url":   {"type": "string"},
+                                    "url": {"type": "string"},
                                     "description": {"type": "string"},
                                 },
-                                "required": ["title", "url", "description"]
-                            }
+                                "required": ["title", "url", "description"],
+                            },
                         },
-                        "associated_standards": {          # NEW ▼
+                        "associated_standards": {  # NEW ▼
                             "type": "array",
                             "items": {
                                 "type": "object",
@@ -216,18 +240,23 @@ async def create_plan(
                                     "url": {"type": "string"},
                                     "description": {"type": "string"},
                                 },
-                                "required": ["name", "standard_name","url"]
-                            }
+                                "required": ["name", "standard_name", "url"],
+                            },
                         },
                     },
-                    "required": ["section_key", "test_code", "ai_rationale", "references", "associated_standards"]
-                }
+                    "required": [
+                        "section_key",
+                        "test_code",
+                        "ai_rationale",
+                        "references",
+                        "associated_standards",
+                    ],
+                },
             },
-            "rationale": {"type": "string"}
+            "rationale": {"type": "string"},
         },
-        "required": ["tests"]
+        "required": ["tests"],
     }
-    
     # ── Build assistant dynamically from TEST_CATALOGUE ────
     client = get_openai_client_sync()
 
@@ -235,22 +264,25 @@ async def create_plan(
         name="Performance Test Planner",
         model=environment.openai_model,
         instructions=(
-             "You are an FDA regulatory strategist. Always respond by calling the "
+            "You are an FDA regulatory strategist. Always respond by calling the "
             "function **return_test_plan** with a single argument named `tests` - "
             "an *array* of objects. **Each object MUST include**\n"
             "・`section_key`  ・`test_code`  ・`ai_rationale`\n"
             "・**`references` (≥1 item)**  ・**`associated_standards` (≥1 item)**\n"
             "Return at least one authoritative source or standard for every test.\n\n"
-             "Allowed combinations are:\n"
+            "Allowed combinations are:\n"
             + json.dumps(TEST_CATALOGUE, indent=2)  # keeps catalogue in‑sync
         ),
         tools=[
             {"type": "file_search"},
-            {"type": "function", "function": {
-                "name": "return_test_plan",
-                "description": "Return the flat list of required tests.",
-                "parameters": function_parameters,
-            }},
+            {
+                "type": "function",
+                "function": {
+                    "name": "return_test_plan",
+                    "description": "Return the flat list of required tests.",
+                    "parameters": function_parameters,
+                },
+            },
         ],
     )
 
@@ -289,9 +321,10 @@ async def create_plan(
 
     llm_out = await _poll_function_json(client, thread.id, run.id, "return_test_plan")
     # debugging
-    logger.debug("🔍 Raw planner output:\n{}",
-             json.dumps(llm_out, indent=2, ensure_ascii=False))
-    
+    logger.debug(
+        "🔍 Raw planner output:\n{}", json.dumps(llm_out, indent=2, ensure_ascii=False)
+    )
+
     """llm_tests: Dict[str, List[str]] = {}
     for item in llm_out["tests"]:
         llm_tests.setdefault(item["section_key"], []).append(item["test_code"])"""
@@ -303,7 +336,7 @@ async def create_plan(
     for item in llm_out["tests"]:
         sec, code = item["section_key"], item["test_code"]
         llm_tests.setdefault(sec, []).append(code)
-        extras[(sec, code)] = item              # keep full object for later
+        extras[(sec, code)] = item  # keep full object for later
 
     # ── Merge rule‑engine & LLM (union) ──────────────────────
     merged: Dict[str, List[str]] = {}
@@ -316,7 +349,6 @@ async def create_plan(
     cards: list[PerformanceTestCard] = []
     for section, codes in merged.items():
         for code in codes:
-
             info = extras.get((section, code), {})
 
             def _ensure_list(x):
@@ -330,13 +362,15 @@ async def create_plan(
 
             # convert raw strings / dicts → Pydantic objects
             ref_objs = [
-                PerformanceTestingReference(**r) if isinstance(r, dict)
+                PerformanceTestingReference(**r)
+                if isinstance(r, dict)
                 else PerformanceTestingReference(title=r)
                 for r in _ensure_list(info.get("references"))
             ]
 
             std_objs = [
-                PerformanceTestingAssociatedStandard(**s) if isinstance(s, dict)
+                PerformanceTestingAssociatedStandard(**s)
+                if isinstance(s, dict)
                 else PerformanceTestingAssociatedStandard(name=s)
                 for s in _ensure_list(info.get("associated_standards"))
             ]
@@ -344,34 +378,31 @@ async def create_plan(
             cards.append(
                 PerformanceTestCard(
                     # ── mandatory identifiers ────────────────────────
-                    section_key   = section,              
-                    test_code     = code,
-
+                    section_key=section,
+                    test_code=code,
                     # ── descriptive meta‑data ────────────────────────
-                    product_id    = product_id,
-                    #test_name     = code.replace("_", " ").title(),
-                    test_description = TEST_CATALOGUE[section][code],
-
+                    product_id=product_id,
+                    # test_name     = code.replace("_", " ").title(),
+                    test_description=TEST_CATALOGUE[section][code],
                     # ── workflow defaults ────────────────────────────
-                    status        = ModuleStatus.PENDING,
-                    risk_level    = RiskLevel.MEDIUM,
-                    ai_confident  = None,
-                    confident_level = PerformanceTestingConfidentLevel.LOW,
-
+                    status=ModuleStatus.PENDING,
+                    risk_level=RiskLevel.MEDIUM,
+                    ai_confident=None,
+                    confident_level=PerformanceTestingConfidentLevel.LOW,
                     # ── LLM‑supplied meta ─────────────────────────────
-                    ai_rationale  = info.get("ai_rationale"),
-                    references    = ref_objs or None,
-                    associated_standards = std_objs or None,
+                    ai_rationale=info.get("ai_rationale"),
+                    references=ref_objs or None,
+                    associated_standards=std_objs or None,
                 )
             )
 
     # ── Upsert into Mongo ────────────────────────────────────
-    if (old := await PerformanceTestPlan.find_one({"product_id": product_id})) :
-        #import json, pprint
+    if old := await PerformanceTestPlan.find_one({"product_id": product_id}):
+        # import json, pprint
         logger.warning(
             "Existing plan for %s →\n%s",
             product_id,
-            json.dumps(old.model_dump(), indent=2, default=str)
+            json.dumps(old.model_dump(), indent=2, default=str),
         )
         await old.delete()
 

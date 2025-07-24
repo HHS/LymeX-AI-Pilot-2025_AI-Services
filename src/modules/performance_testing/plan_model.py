@@ -11,9 +11,6 @@ class PerformanceTestPlan(Document):
 
     product_id: str = Field(..., index=True)
 
-    # section_key → list of canonical test codes (see const.TEST_CATALOGUE)
-    # required_tests: Dict[str, List[str]]
-
     # required tests to be performed by user
     tests: list[PerformanceTestCard] = Field(default_factory=list)
 

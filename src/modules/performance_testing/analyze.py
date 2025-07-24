@@ -20,16 +20,16 @@ from src.infrastructure.openai import get_openai_client_sync
 from src.infrastructure.redis import redis_client
 
 from src.modules.performance_testing.storage import (
-    get_performance_testing_documents,  # ← new
+    get_performance_testing_documents,          # ← new
 )
 
 from src.utils.parse_openai_json import parse_openai_json
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
-from src.modules.performance_testing.performance_test_planner import create_plan
+from src.modules.performance_testing.performance_test_planner import create_plan 
 
 from src.modules.performance_testing.model import (
     PerformanceTesting,
-    AnalyzePerformanceTestingProgress,
+    AnalyzePerformanceTestingProgress, 
 )
 from src.modules.performance_testing.schema import (
     AnalyticalStudy,
@@ -50,30 +50,29 @@ from src.modules.performance_testing.schema import (
     PerformanceTestingAssociatedStandard,
 )
 
-
-# ─────── Progress helper ────────────────────────────────────────
+# ─────── Progress helper ──────────────────────────────────────── 
 class AnalyzePTProgress:
     """Thin wrapper around the AnalyzePerformanceTestingProgress document."""
 
     def __init__(self) -> None:
         self.doc: AnalyzePerformanceTestingProgress | None = None
 
-    async def init(self, product_id: str, total_files: int) -> None:
+    async def init(self, product_id: str, total_sections: int) -> None:
         now = datetime.now(timezone.utc)
         existing = await AnalyzePerformanceTestingProgress.find_one(
             AnalyzePerformanceTestingProgress.product_id == product_id
         )
         if existing:
-            existing.total_files = total_files
-            # existing.processed_files  = 0
-            existing.updated_at = now
+            existing.total_sections     = total_sections
+            #existing.processed_files  = 0
+            existing.updated_at       = now
             self.doc = existing
         else:
             self.doc = AnalyzePerformanceTestingProgress(
-                product_id=product_id,
-                total_files=total_files,
-                # processed_files= 0,
-                updated_at=now,
+                product_id     = product_id,
+                total_sections    = total_sections,
+                #processed_files= 0,
+                updated_at     = now,
             )
         await self.doc.save()
 
@@ -81,23 +80,15 @@ class AnalyzePTProgress:
         if not self.doc:
             return
         self.doc.processed_files += n
-        self.doc.updated_at = datetime.now(timezone.utc)
+        self.doc.updated_at       = datetime.now(timezone.utc)
         await self.doc.save()
 
     async def done(self) -> None:
         if not self.doc:
             return
-        self.doc.processed_files = self.doc.total_files
-        self.doc.updated_at = datetime.now(timezone.utc)
+        self.doc.processed_sections = self.doc.total_sections
+        self.doc.updated_at      = datetime.now(timezone.utc)
         await self.doc.save()
-
-    async def err(self) -> None:
-        if not self.doc:
-            return
-        self.doc.processed_files = -1
-        self.doc.updated_at = datetime.now(timezone.utc)
-        await self.doc.save()
-        logger.error("Progress marked as errored for {}", self.doc.product_id)
 
 
 # ───────── helpers ───────────────────────────────────────────
@@ -108,7 +99,6 @@ async def _get_or_create(pid: str) -> PerformanceTesting:
         await doc.insert()
     return doc
 
-
 async def _maybe_upload_local_file(client, ids: List[str]) -> List[str]:
     if ids != ["local"]:
         return ids
@@ -117,7 +107,6 @@ async def _maybe_upload_local_file(client, ids: List[str]) -> List[str]:
         fid = client.files.create(file=fh, purpose="assistants").id
     logger.info("🔄 Using local PDF {} → {}", pdf.name, fid)
     return [fid]
-
 
 async def _upload_via_url(client, url: str, filename: str) -> str:
     """
@@ -129,10 +118,9 @@ async def _upload_via_url(client, url: str, filename: str) -> str:
         r = await http.get(url, timeout=60)
         r.raise_for_status()
     bio = io.BytesIO(r.content)
-    bio.name = filename  # important so GPT “sees” the name
+    bio.name = filename                # important so GPT “sees” the name
     uploaded = client.files.create(file=bio, purpose="assistants")
     return uploaded.id
-
 
 def _robust_json(txt: str) -> dict:
     """
@@ -147,17 +135,16 @@ def _robust_json(txt: str) -> dict:
         if txt.startswith("```"):
             txt = txt.strip("` \n")
             if txt.lower().startswith("json"):
-                txt = txt[4:].lstrip()  # drop leading “json”
+                txt = txt[4:].lstrip()          # drop leading “json”
         # grab the first {...} block
         m = re.search(r"\{.*\}", txt, flags=re.S)
         if m:
             try:
                 return json.loads(m.group(0))
             except Exception:
-                pass  # fall through
+                pass        # fall through
         # last resort – very tolerant but slower
         return parse_openai_json(txt)
-
 
 # ───────── assistant ────────────────────────────────────────
 async def _assistant_id(client) -> str:
@@ -179,16 +166,14 @@ async def _assistant_id(client) -> str:
         "submit_cyber_section": CyberSecurity,
     }
     for name, cls in mapping.items():
-        tools.append(
-            {
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": f"Return {cls.__name__} JSON.",
-                    "parameters": cls.model_json_schema(by_alias=True),
-                },
-            }
-        )
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": f"Return {cls.__name__} JSON.",
+                "parameters": cls.model_json_schema(by_alias=True),
+            },
+        })
 
     assistant = client.beta.assistants.create(
         name="Performance‑Testing extractor",
@@ -241,14 +226,10 @@ async def _generic_extract(
         thread_id=thread.id,
         role="user",
         content=prompt,
-        attachments=[
-            {"file_id": fid, "tools": [{"type": "file_search"}]} for fid in attachments
-        ],
+        attachments=[{"file_id": fid, "tools": [{"type": "file_search"}]} for fid in attachments],
     )
 
-    run = client.beta.threads.runs.create(
-        thread_id=thread.id, assistant_id=assistant_id
-    )
+    run = client.beta.threads.runs.create(thread_id=thread.id, assistant_id=assistant_id)
     record: dict | None = None
 
     for _ in range(120):
@@ -263,12 +244,7 @@ async def _generic_extract(
                         record = _robust_json(arg) if isinstance(arg, str) else arg
                     outs.append({"tool_call_id": tc.id, "output": "received"})
                 elif tc.type == "file_search":
-                    outs.append(
-                        {
-                            "tool_call_id": tc.id,
-                            "output": {"data": [{"page": 1, "snippet": ""}]},
-                        }
-                    )
+                    outs.append({"tool_call_id": tc.id, "output": {"data": [{"page": 1, "snippet": ""}]}})
             client.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread.id, run_id=run.id, tool_outputs=outs
             )
@@ -291,7 +267,7 @@ async def _generic_extract(
 
     # key normalisation
     attachments = record.pop("attachments", None)
-    if attachments:  # only if not None / not empty
+    if attachments:                                   # only if not None / not empty
         record["attachment_ids"] = [a.get("id") for a in attachments if a]
 
     pages = record.pop("pages", None)
@@ -306,14 +282,14 @@ async def _generic_extract(
         return
 
     doc = await _get_or_create(product_id)
-    # getattr(doc, attr_name).append(obj)
-
+    #getattr(doc, attr_name).append(obj)
+    
     slot = getattr(doc, attr_name)
     if isinstance(slot, list):
         slot.append(obj)
     else:
         setattr(doc, attr_name, obj)
-
+    
     await doc.save()
 
       # ────────── Push the extracted data back into the test‑plan ──────────
@@ -358,7 +334,7 @@ async def _generic_extract(
 
     logger.info("✅ Saved {} section for {}", tool_name, product_id)
 
-    if progress:  # tick AFTER successful save
+    if progress:                       # tick AFTER successful save
         await progress.tick()
 
 
@@ -388,26 +364,27 @@ async def _run_all_sections(client, aid, mapping, pid, atts):
     }
 
     attr_map = {
-        "AnalyticalStudy": "analytical",
-        "ComparisonStudy": "comparison",
-        "ClinicalStudy": "clinical",
-        "AnimalTesting": "animal_testing",  # single object
-        "EMCSafety": "emc_safety",  # single object
-        "WirelessCoexistence": "wireless",  # single object
-        "SoftwarePerformance": "software",
-        "Interoperability": "interoperability",
-        "Biocompatibility": "biocompatibility",
-        "SterilityValidation": "sterility",
-        "ShelfLife": "shelf_life",
-        "CyberSecurity": "cybersecurity",
+    "AnalyticalStudy":      "analytical",
+    "ComparisonStudy":      "comparison",
+    "ClinicalStudy":        "clinical",
+    "AnimalTesting":        "animal_testing",   # single object
+    "EMCSafety":            "emc_safety",       # single object
+    "WirelessCoexistence":  "wireless",         # single object
+    "SoftwarePerformance":  "software",
+    "Interoperability":     "interoperability",
+    "Biocompatibility":     "biocompatibility",
+    "SterilityValidation":  "sterility",
+    "ShelfLife":            "shelf_life",
+    "CyberSecurity":        "cybersecurity",
     }
 
     for tool, cls in mapping.items():
-        # attr = cls.__name__.replace("Study", "").replace("Validation", "").lower()
+        #attr = cls.__name__.replace("Study", "").replace("Validation", "").lower()
         attr = attr_map[cls.__name__]
         attr = attr if attr != "shelflife" else "shelf_life"
-        await _generic_extract(client, aid, pid, atts, tool, cls, attr, prompts[tool])
-
+        await _generic_extract(
+            client, aid, pid, atts, tool, cls, attr, prompts[tool]
+        )
 
 # ───── helper used to map tool-names → top-level “section keys” ─────
 def _section_key(tool_name: str) -> str:
@@ -415,19 +392,17 @@ def _section_key(tool_name: str) -> str:
     "submit_analytical_section"  →  "analytical"
     "submit_emc_section"         →  "emc_safety"
     """
-    return tool_name.removeprefix("submit_").removesuffix("_section")
-
+    return (tool_name
+            .removeprefix("submit_")      
+            .removesuffix("_section"))
 
 # ───────── public entry point ───────────────────────────────
-async def analyze_performance_testing(
-    product_id: str,
-    attachment_ids: Optional[List[str]] = None,
-) -> int:
+async def analyze_performance_testing(product_id: str, attachment_ids: Optional[List[str]] = None,) -> int:
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
     if not await lock.acquire(blocking=False):
         logger.warning("Analysis already running for {}", product_id)
         return
-
+    
     progress = AnalyzePTProgress()
 
     num_files = -1
@@ -445,24 +420,24 @@ async def analyze_performance_testing(
         else:
             active_sections = None        # ← means “run everything” when plan empty
 
-        # client = get_openai_client_sync()
-        # aid, full_mapping = await _assistant_id(client)
-
+        #client = get_openai_client_sync()
+        #aid, full_mapping = await _assistant_id(client)
+        
         # pull doc list from MinIO if caller didn’t hand us explicit IDs
         if not attachment_ids:
-            docs = await get_performance_testing_documents(product_id)
+            docs     = await get_performance_testing_documents(product_id)
 
             # Return None cleanly when no files are present
-            if not docs:  # len(docs) == 0
+            if not docs:                       # len(docs) == 0
                 logger.warning(
                     f"No performance-testing documents found for {product_id}; "
                     "AI processing can’t be done."
                 )
-                return None  # signals None to the caller
+                return None                    # signals None to the caller
 
-            client = get_openai_client_sync()  # need client early
-            uploads = []
-            num_files = len(docs)  # pass the number of documents
+            client   = get_openai_client_sync()              # need client early
+            uploads  = []
+            num_files = len(docs)     # pass the number of documents
             for d in docs:
                 try:
                     fid = await _upload_via_url(client, d.url, d.file_name)
@@ -472,10 +447,8 @@ async def analyze_performance_testing(
             attachment_ids = uploads
             logger.info(" %d PDFs uploaded for %s", len(uploads), product_id)
         else:
-            num_files = len(
-                attachment_ids
-            )  # pass the number of documents based on their attachment_ids
-            client = get_openai_client_sync()  # unchanged path
+            num_files = len(attachment_ids)     # pass the number of documents based on their attachment_ids
+            client = get_openai_client_sync()                # unchanged path
 
         aid, full_mapping = await _assistant_id(client)
 
@@ -490,17 +463,15 @@ async def analyze_performance_testing(
             mapping = full_mapping  # no plan → run every section
         
         # initialise progress BEFORE starting extraction
-        await progress.init(product_id, total_files=len(mapping))
+        await progress.init(product_id, total_sections=len(mapping))
 
         await PerformanceTesting.find(
             PerformanceTesting.product_id == product_id
         ).delete_many()
         await _run_all_sections(client, aid, mapping, product_id, attachment_ids)
 
-        await progress.done()  # mark 100 %
-    except Exception as exc:
-        logger.error("Performance testing analysis failed for %s: %s", product_id, exc)
-        await progress.err()
+        await progress.done()                   # mark 100 %
+
     finally:
         await lock.release()
 

@@ -70,28 +70,25 @@ class PerformanceTestingSection(str, enum.Enum):
     Canonical keys for each sub-section.  Keeping the names **exactly**
     in sync with the attribute names in PerformanceTestingDocument.
     """
-
-    ANALYTICAL = "analytical"
-    COMPARISON = "comparison"
-    CLINICAL = "clinical"
-    ANIMAL_TESTING = "animal_testing"
-    EMC_SAFETY = "emc_safety"
-    WIRELESS = "wireless"
-    SOFTWARE = "software"
+    ANALYTICAL       = "analytical"
+    COMPARISON       = "comparison"
+    CLINICAL         = "clinical"
+    ANIMAL_TESTING   = "animal_testing"
+    EMC_SAFETY       = "emc_safety"
+    WIRELESS         = "wireless"
+    SOFTWARE         = "software"
     INTEROPERABILITY = "interoperability"
     BIOCOMPATIBILITY = "biocompatibility"
-    STERILITY = "sterility"
-    SHELF_LIFE = "shelf_life"
-    CYBERSECURITY = "cybersecurity"
+    STERILITY        = "sterility"
+    SHELF_LIFE       = "shelf_life"
+    CYBERSECURITY    = "cybersecurity"
 
 
 class PerfTestingDocumentResponse(BaseModel):
     """
     Tiny DTO used by storage.py to return a single presigned URL.
     """
-
     url: str
-
 
 class PerformanceTestingDocumentResponse(BaseModel):
     document_name: str = Field(
@@ -109,8 +106,8 @@ class PerformanceTestingDocumentResponse(BaseModel):
     size: int = Field(..., description="Size of the document in bytes")
 
 
-# ------------------------------ Primitive nested objects – reused by multiple sub‑schemas ------------------------------
 
+#------------------------------ Primitive nested objects – reused by multiple sub‑schemas ------------------------------
 
 class AttachmentRef(BaseModel):
     """Reference to a file stored in the vector DB / S3 bucket etc."""
@@ -152,7 +149,8 @@ class BioMaterial(BaseModel):
         "communicating_mucosa",
         "contacting_skin",
     ]
-    exposure_duration: Literal["≤24h", ">24h ≤30d", ">30d"]
+    exposure_duration: Literal[
+        "≤24h", ">24h ≤30d", ">30d"]
 
 
 # Sterility‑specific helper
@@ -162,7 +160,6 @@ class SterilizationMethod(BaseModel):
 
 
 # ------------------------------ 1. Analytical studies ------------------------------
-
 
 class AnalyticalStudy(BaseModel):
     study_type: Literal[
@@ -177,42 +174,42 @@ class AnalyticalStudy(BaseModel):
         "other",
     ]
     performed: bool = False
-    attachments: List[AttachmentRef] = Field([])
-    pages: List[PageRef] = Field([])
+    attachments: List[AttachmentRef] = Field(default_factory=list)
+    pages: List[PageRef] = Field(default_factory=list)
     confidence: Optional[float] = None  # 0‑1 from AI assessor
-    # protocol metadata
-    product_name: Optional[str] = None
-    product_identifier: Optional[str] = None
-    protocol_id: Optional[str] = None  # number & revision
-    objective: Optional[str] = None
-    specimen_description: Optional[str] = None
-    specimen_collection: Optional[str] = None
-    samples_replicates_sites: Optional[str] = None
-    positive_controls: Optional[str] = None
-    negative_controls: Optional[str] = None
-    calibration_requirements: Optional[str] = None
-    assay_steps: Optional[str] = None
-    data_analysis_plan: Optional[str] = None
-    statistical_analysis_plan: Optional[str] = None
-    acceptance_criteria: Optional[str] = None
-    consensus_standards: Optional[str] = None
+     # protocol metadata
+    product_name:                Optional[str] = None
+    product_identifier:          Optional[str] = None
+    protocol_id:                 Optional[str] = None      # number & revision
+    objective:                   Optional[str] = None
+    specimen_description:        Optional[str] = None
+    specimen_collection:         Optional[str] = None
+    samples_replicates_sites:    Optional[str] = None
+    positive_controls:           Optional[str] = None
+    negative_controls:           Optional[str] = None
+    calibration_requirements:    Optional[str] = None
+    assay_steps:                 Optional[str] = None
+    data_analysis_plan:          Optional[str] = None
+    statistical_analysis_plan:   Optional[str] = None
+    acceptance_criteria:         Optional[str] = None
+    consensus_standards:         Optional[str] = None
 
     # report-specific additions
-    deviations: Optional[str] = None
-    discussion: Optional[str] = None
-    conclusion: Optional[str] = None
+    deviations:                  Optional[str] = None
+    discussion:                  Optional[str] = None
+    conclusion:                  Optional[str] = None
 
     # free-form catch-all
-    key_results: Optional[str] = None
+    key_results:                 Optional[str] = None
+
 
 
 # ------------------------------ 2. Comparison studies ------------------------------
 
-
 class ComparisonStudy(BaseModel):
     study_type: Literal["method", "matrix"]
     performed: bool = False
-    attachments: List[AttachmentRef] = Field([])
+    attachments: List[AttachmentRef] = Field(default_factory=list)
     comparator_device_k_number: Optional[str] = None
     summary: Optional[str] = None
     confidence: Optional[float] = None
@@ -220,62 +217,58 @@ class ComparisonStudy(BaseModel):
 
 # ------------------------------ 3. Clinical studies ------------------------------
 
-
 class ClinicalStudy(BaseModel):
     sensitivity: Optional[float] = None  # 0‑1
     specificity: Optional[float] = None  # 0‑1
     clinical_cut_off: Optional[str] = None
     pro_included: Optional[bool] = None
     ppi_included: Optional[bool] = None
-    attachments: List[AttachmentRef] = Field([])
+    attachments: List[AttachmentRef] = Field(default_factory=list)
     summary: Optional[str] = None
     confidence: Optional[float] = None
 
 
 # ------------------------------ 4. Animal testing (GLP) ------------------------------
 
-
 class AnimalTesting(BaseModel):
     glp_compliant: Optional[bool] = None
     justification_if_not_glp: Optional[str] = None
-    attachments: List[AttachmentRef] = Field([])
+    attachments: List[AttachmentRef] = Field(default_factory=list)
     confidence: Optional[float] = None
 
 
 # ------------------------------ 5. EMC / Electrical / Mechanical / Thermal safety ------------------------------
-
 
 class EMCSafety(BaseModel):
     num_dut: Optional[int] = None  # number of devices tested
     worst_harm: Optional[Literal["death_serious", "non_serious", "no_harm"]] = None
     iec_edition: Optional[str] = None  # e.g. "IEC 60601‑1 Ed 3.2"
     asca: Optional[bool] = None  # FDA ASCA pilot used
-    essential_performance: List[str] = Field([])  # EP functions
-    pass_fail_pages: List[PageRef] = Field([])
+    essential_performance: List[str] = Field(default_factory=list)  # EP functions
+    pass_fail_pages: List[PageRef] = Field(default_factory=list)
     degradations_observed: Optional[str] = None
     allowances: Optional[str] = None
     deviations: Optional[str] = None
     final_version_tested: Optional[bool] = None
-    attachments: List[AttachmentRef] = Field([])
+    attachments: List[AttachmentRef] = Field(default_factory=list)
     confidence: Optional[float] = None
+
 
 
 # ------------------------------ 6. Wireless coexistence ------------------------------
 
-
 class WirelessCoexistence(BaseModel):
-    functions: List[WirelessFunction] = Field([])
+    functions: List[WirelessFunction] = Field(default_factory=list)
     coexistence_tier_met: Optional[bool] = None
     fwp_summary: Optional[str] = None  # Functional Wireless Performance summary
     eut_exposed: Optional[bool] = None  # EUT exposed to expected signals
     fwp_maintained: Optional[bool] = None
-    risk_mitigations_pages: List[PageRef] = Field([])
-    attachments: List[AttachmentRef] = Field([])
+    risk_mitigations_pages: List[PageRef] = Field(default_factory=list)
+    attachments: List[AttachmentRef] = Field(default_factory=list)
     confidence: Optional[float] = None
 
 
 # 7. ------------------------------ Software & cyber‑security performance ------------------------------
-
 
 class SoftwarePerformance(BaseModel):
     contains_software: Optional[bool] = None
@@ -285,12 +278,11 @@ class SoftwarePerformance(BaseModel):
     unresolved_anomalies_attachment: Optional[AttachmentRef] = None
     sbom_attachment: Optional[AttachmentRef] = None
     risk_assessment_attachment: Optional[AttachmentRef] = None
-    patch_plan_pages: List[PageRef] = Field([])
+    patch_plan_pages: List[PageRef] = Field(default_factory=list)
     confidence: Optional[float] = None
 
 
 # ------------------------------ 8. Interoperability ------------------------------
-
 
 class Interoperability(BaseModel):
     interfaces: List[ElectronicInterface] | None = None
@@ -300,7 +292,6 @@ class Interoperability(BaseModel):
 
 
 # ------------------------------ 9. Biocompatibility ------------------------------
-
 
 class Biocompatibility(BaseModel):
     tissue_contacting: Optional[bool] = None
@@ -313,7 +304,6 @@ class Biocompatibility(BaseModel):
 
 # ------------------------------ 10. Sterility validation ------------------------------
 
-
 class SterilityValidation(BaseModel):
     packaged_as_sterile: Optional[bool] = None
     methods: Optional[List[SterilizationMethod]] = None  # making it optional
@@ -322,37 +312,34 @@ class SterilityValidation(BaseModel):
     pyrogenicity_test: Optional[bool] = None
     packaging_description: Optional[str] = None
     modifications_warning_confirmed: Optional[bool] = None
-    attachments: List[AttachmentRef] = Field([])
+    attachments: List[AttachmentRef] = Field(default_factory=list)
     confidence: Optional[float] = None
 
 
 # ------------------------------ 11. Shelf‑life / accelerated aging ------------------------------
 
-
 class ShelfLife(BaseModel):
     assessed_before: Optional[bool] = None
     proposed_shelf_life_months: Optional[int] = None
-    attachments: List[AttachmentRef] = Field([])
+    attachments: List[AttachmentRef] = Field(default_factory=list)
     rationale_if_no_test: Optional[str] = None
     confidence: Optional[float] = None
 
 
 # ------------------------------ 12. Cyber‑security (separate from SW performance as per questionnaire) ------------------------------
 
-
 class CyberSecurity(BaseModel):
     threat_model_attachment: Optional[AttachmentRef] = None
     sbom_attachment: Optional[AttachmentRef] = None
     architecture_views_present: Optional[bool] = None
     risk_assessment_attachment: Optional[AttachmentRef] = None
-    patch_plan_pages: List[PageRef] = Field([])
+    patch_plan_pages: List[PageRef] = Field(default_factory=list)
     eol_support_doc_attachment: Optional[AttachmentRef] = None
-    security_controls_pages: List[PageRef] = Field([])
+    security_controls_pages: List[PageRef] = Field(default_factory=list)
     confidence: Optional[float] = None
 
 
 # ------------------------------ Aggregate document – what gets persisted in the DB ------------------------------
-
 
 class PerformanceTesting(BaseModel):
     """Root document representing *all* performance‑testing evidence for a device."""
@@ -361,9 +348,9 @@ class PerformanceTesting(BaseModel):
     product_id: str  # foreign‑key to ProductProfile document
 
     # Sub‑sections – optional so we can populate them lazily
-    analytical: List[AnalyticalStudy] = Field([])
-    comparison: List[ComparisonStudy] = Field([])
-    clinical: List[ClinicalStudy] = Field([])
+    analytical: List[AnalyticalStudy] = Field(default_factory=list)
+    comparison: List[ComparisonStudy] = Field(default_factory=list)
+    clinical: List[ClinicalStudy] = Field(default_factory=list)
     animal_testing: Optional[AnimalTesting] = None
     emc_safety: Optional[EMCSafety] = None
     wireless: Optional[WirelessCoexistence] = None
@@ -377,7 +364,7 @@ class PerformanceTesting(BaseModel):
     # Roll‑up & meta
     overall_risk_level: Optional[RiskLevel] = None
     status: ModuleStatus = ModuleStatus.PENDING
-    missing_items: List[str] = Field([])
+    missing_items: List[str] = Field(default_factory=list)
 
     created_at: date = Field(default_factory=date.today)
     updated_at: Optional[date] = None

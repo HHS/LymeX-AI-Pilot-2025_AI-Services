@@ -19,7 +19,6 @@ from minio.datatypes import Object
 class TestingDocumentInfo(TypedDict):
     file_name: str
     author: str
-    competitor_name: str
 
 
 async def analyze_performance_testing_document(
@@ -32,7 +31,6 @@ async def analyze_performance_testing_document(
         document_name=document_name,
         file_name=file_name,
         url=await generate_get_object_presigned_url(obj.object_name),
-        competitor_name=testing_document_info["competitor_name"],
         uploaded_at=obj.last_modified.isoformat(),
         author=testing_document_info["author"],
         content_type=obj.content_type
@@ -98,7 +96,6 @@ TESTING_DOCUMENT_INFO_SCHEMA = {
     "fields": [
         {"name": "file_name", "type": "string"},
         {"name": "author", "type": "string"},
-        {"name": "competitor_name", "type": "string"},
     ],
 }
 

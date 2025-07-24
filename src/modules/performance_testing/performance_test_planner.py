@@ -69,6 +69,30 @@ def _robust_json(txt: str) -> dict:
         # last resort – very tolerant but slower
         return parse_openai_json(txt)
 
+# ───────────────── tolerant JSON loader ────────────────────────
+def _robust_json(txt: str) -> dict:
+    """
+    1. try plain json.loads()
+    2. strip code fences / pick first balanced {...}
+    3. final fallback: parse_openai_json()  (very forgiving)
+    """
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        # common pattern: ```json … ```
+        if txt.startswith("```"):
+            txt = txt.strip("` \n")
+            if txt.lower().startswith("json"):
+                txt = txt[4:].lstrip()
+        # grab the first {...} block
+        m = re.search(r"\{.*\}", txt, flags=re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+        # last resort – very tolerant but slower
+        return parse_openai_json(txt)
 
 # ─────────────────────────────────────────────────────────────
 # 1.  Helper: simple rule-engine (cheap heuristics first)
@@ -175,7 +199,7 @@ async def create_plan(
         raise HTTPException(404, "Product-Profile not found for this product")
 
     rule_tests = _rule_engine(profile)
-
+    
     function_parameters = {
         "type": "object",
         "properties": {
@@ -233,7 +257,6 @@ async def create_plan(
         },
         "required": ["tests"],
     }
-
     # ── Build assistant dynamically from TEST_CATALOGUE ────
     client = get_openai_client_sync()
 

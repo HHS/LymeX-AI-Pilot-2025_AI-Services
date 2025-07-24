@@ -39,7 +39,7 @@ from src.modules.performance_testing.schema import (
 )
 
 # we will reuse the storage layer that already exists for Product-Profile
-from src.modules.product_profile.storage import get_product_profile_documents
+from src.modules.product_profile.storage  import get_product_profile_documents
 from src.utils.upload_helpers import upload_via_url
 from src.utils.parse_openai_json import parse_openai_json   # tolerant helper
 
@@ -78,7 +78,7 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 
     def add(section: str, *codes: str):
         out.setdefault(section, []).extend(codes)
-
+    
     add("analytical", "precision", "linearity", "sensitivity")
     add("clinical", "clin_sens_spec")
     if getattr(profile, "contains_software", False):
@@ -95,12 +95,12 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 # ─────────────────────────────────────────────────────────────
 # 2.  Helper: poll assistant until function JSON is returned
 # ─────────────────────────────────────────────────────────────
-async def _poll_function_json(
-    client, thread_id: str, run_id: str, function_name: str
-) -> dict:
+async def _poll_function_json(client, thread_id: str, run_id: str,
+                              function_name: str) -> dict:
     """Wait until the assistant calls *function_name* and return its arguments."""
     for _ in range(120):
-        run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run_id)
+        run = client.beta.threads.runs.retrieve(thread_id=thread_id,
+                                                run_id=run_id)
 
         if run.status == "requires_action":
             tool_calls = run.required_action.submit_tool_outputs.tool_calls
@@ -121,12 +121,10 @@ async def _poll_function_json(
 
                 elif tc.type == "file_search":
                     # --- return an empty stub so the assistant knows the call succeeded
-                    outs.append(
-                        {
-                            "tool_call_id": tc.id,
-                            "output": {"data": [{"page": 1, "snippet": ""}]},
-                        }
-                    )
+                    outs.append({
+                        "tool_call_id": tc.id,
+                        "output": {"data": [{"page": 1, "snippet": ""}]},
+                    })
 
             # >>> Submit *all* the collected outputs in one shot
             if outs:
@@ -150,23 +148,20 @@ async def _poll_function_json(
 # ─────────────────────────────────────────────────────────────
 # 3.  Public entry point
 # ─────────────────────────────────────────────────────────────
-async def create_plan(
-    product_id: str,
-    profile_pdf_ids: list[str] | None = None,
-) -> None:
+async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,) -> None:
     """Analyse the Product-Profile PDF + rule engine → store PerformanceTestPlan.
 
     1. If `profile_pdf_ids` are supplied (fast-path from UI) - use them.
     2. Otherwise pull *all* Product-Profile PDFs from MinIO, upload to
        OpenAI, and use those uploads.
-
+        
     """
 
     logger.info("🛠  Generating test-plan for {}", product_id)
 
     # ── Fetch profile for rule-engine (if you keep rules) ──
-    sleep_time = 5
-    max_retries = 20  # 100 seconds max
+    sleep_time = 5 
+    max_retries = 20 # 100 seconds max
     for _ in range(max_retries):
         profile = await ProductProfile.find_one({"product_id": product_id})
         if profile:
@@ -175,6 +170,7 @@ async def create_plan(
         await asyncio.sleep(sleep_time)
     else:
         raise HTTPException(404, "Product-Profile not found for this product")
+
 
     rule_tests = _rule_engine(profile)
     
@@ -278,16 +274,17 @@ async def create_plan(
         role="user",
         content="Which *individual* performance tests are mandatory?",
         attachments=[
-            {"file_id": fid, "tools": [{"type": "file_search"}]}
-            for fid in profile_pdf_ids  # [:10]
-        ],
+                    {"file_id": fid,
+                      "tools":[{"type":"file_search"}]}
+                    for fid in profile_pdf_ids#[:10]  
+                    ],
     )
 
-    run = client.beta.threads.runs.create(
-        thread_id=thread.id, assistant_id=assistant.id
-    )
+    run = client.beta.threads.runs.create(thread_id=thread.id,
+                                          assistant_id=assistant.id)
 
-    llm_out = await _poll_function_json(client, thread.id, run.id, "return_test_plan")
+    llm_out = await _poll_function_json(client, thread.id, run.id,
+                                        "return_test_plan")
     # debugging
     logger.debug("🔍 Raw planner output:\n{}",
              json.dumps(llm_out, indent=2, ensure_ascii=False))

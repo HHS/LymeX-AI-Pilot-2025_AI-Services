@@ -22,5 +22,5 @@ class PerformanceTestPlan(Document):
     updated_at: datetime | None = None
 
     class Settings:
-        name = "performance_test_plan"  # MongoDB collection name
+        name = "performance_test_plan"       # MongoDB collection name
         use_state_management = True

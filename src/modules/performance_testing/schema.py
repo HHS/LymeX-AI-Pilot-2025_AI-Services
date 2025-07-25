@@ -24,45 +24,13 @@ class ModuleStatus(str, enum.Enum):
     COMPLETED = "completed"  # all mandatory items satisfied
     NEEDS_REVIEW = "needs_review"  # AI finished but mandatory gaps remain
 
-class PerformanceTestingConfidentLevel(str, enum.Enum):
-    LOW    = "Low"
-    MEDIUM = "Medium"
-    HIGH   = "High"
 
+class TestStatus(str, enum.Enum):
+    """Test Status based on AI and User input"""
 
-class PerformanceTestingReference(BaseModel):
-    title:       str
-    url:         str | None = None
-    description: str | None = None
-
-
-class PerformanceTestingAssociatedStandard(BaseModel):
-    name:         str                        # e.g. "ISO 10993‑4"
-    standard_name: str | None = None        # long title
-    version:      str | None = None         # "2017/AMD1:2020"
-    url:          str | None = None
-    description:  str | None = None
-
-
-class PerformanceTestCard(BaseModel):
-    section_key: str                    # "analytical", "clinical", …
-    test_code:     str
-    test_description: str = "not available"
-    status:        ModuleStatus   = ModuleStatus.PENDING
-    risk_level:    RiskLevel = RiskLevel.MEDIUM
-    ai_confident:  int | None                 = None          # 0‑100 %
-    confident_level: PerformanceTestingConfidentLevel | None = None
-    ai_rationale:  str | None                 = None
-    references:    list[PerformanceTestingReference]          | None = None
-    associated_standards: list[PerformanceTestingAssociatedStandard] | None = None
-    rejected_justification: str | None        = None
-
-    # ─── metadata filled by backend ────────────────────────────
-    id:            PydanticObjectId = Field(default_factory=PydanticObjectId, alias="_id")
-    product_id:    str
-    created_at:    datetime = Field(default_factory=datetime.utcnow)
-    created_by:    str = "ai@crowdplat.com"
-
+    SUGGESTED = "Suggested"  # Test suggested by AI
+    ACCEPTED = "Accepted"  # Test Accepted by User
+    REJECTED = "Rejected"  # Test Rejected by User
 
 
 class PerformanceTestingConfidentLevel(str, enum.Enum):
@@ -89,7 +57,7 @@ class PerformanceTestCard(BaseModel):
     section_key: str  # "analytical", "clinical", …
     test_code: str
     test_description: str = "not available"
-    status: ModuleStatus = ModuleStatus.PENDING
+    status: TestStatus = TestStatus.SUGGESTED
     risk_level: RiskLevel = RiskLevel.MEDIUM
     ai_confident: int | None = None  # 0‑100 %
     confident_level: PerformanceTestingConfidentLevel | None = None

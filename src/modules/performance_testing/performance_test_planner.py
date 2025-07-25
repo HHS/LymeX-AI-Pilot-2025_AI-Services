@@ -33,7 +33,7 @@ from src.modules.performance_testing.schema import (
     PerformanceTestCard,
     PerformanceTestingConfidentLevel,
     RiskLevel,
-    ModuleStatus,
+    TestStatus,
     PerformanceTestingReference,
     PerformanceTestingAssociatedStandard,
 )
@@ -385,7 +385,7 @@ async def create_plan(
                     # test_name     = code.replace("_", " ").title(),
                     test_description=TEST_CATALOGUE[section][code],
                     # ── workflow defaults ────────────────────────────
-                    status=ModuleStatus.PENDING,
+                    status=TestStatus.SUGGESTED,
                     risk_level=RiskLevel.MEDIUM,
                     ai_confident=None,
                     confident_level=PerformanceTestingConfidentLevel.LOW,

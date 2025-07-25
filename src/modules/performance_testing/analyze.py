@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence
 import httpx
 import asyncio
 import io
@@ -46,7 +46,7 @@ from src.modules.performance_testing.schema import (
     ShelfLife,
     CyberSecurity,
     PerformanceTestingConfidentLevel,
-    ModuleStatus,
+    TestStatus,
     PerformanceTestingReference,
     PerformanceTestingAssociatedStandard,
 )
@@ -352,7 +352,7 @@ async def _generic_extract(
                     ]
 
                     # ▸ status
-                    card.status = ModuleStatus.COMPLETED
+                    card.status = TestStatus.SUGGESTED   # Suggested by AI
                     break
             await plan.save()
     except Exception as exc:
@@ -436,6 +436,7 @@ def _section_key(tool_name: str) -> str:
 async def analyze_performance_testing(
     product_id: str,
     attachment_ids: Optional[List[str]] = None,
+    card_ids: Optional[Sequence[str]] = None, # run selected cards only
 ) -> int:
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
     if not await lock.acquire(blocking=False):
@@ -453,11 +454,28 @@ async def analyze_performance_testing(
             await create_plan(product_id)  # on‑the‑fly generation
             plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
 
-        # build a set of section keys that actually contain cards
+        # ── Decide which section(s) we really need to extract ──────────────
+        if plan_doc and plan_doc.tests:
+            if card_ids:
+                # user asked for *specific* card(s)
+                wanted = {str(cid) for cid in card_ids}
+                chosen  = [c for c in plan_doc.tests if str(c.id) in wanted]
+                if not chosen:
+                    logger.warning("Card‑id(s) %s not found for %s", wanted, product_id)
+                    return 0
+                active_sections = {c.section_key for c in chosen}
+            else:
+                # default: run every test card in the plan
+                active_sections = {c.section_key for c in plan_doc.tests}
+        else:
+            # no plan means run everything 
+            active_sections = None
+
+        """# build a set of section keys that actually contain cards
         if plan_doc and plan_doc.tests:
             active_sections = {card.section_key for card in plan_doc.tests}
         else:
-            active_sections = None  # ← means “run everything” when plan empty
+            active_sections = None  # ← means “run everything” when plan empty"""
 
         # client = get_openai_client_sync()
         # aid, full_mapping = await _assistant_id(client)
@@ -520,3 +538,23 @@ async def analyze_performance_testing(
         await lock.release()
 
     return num_files
+
+# --------------------------------------------------------------------------
+# Convenience wrappers – keeping the public API explicit & readable
+# --------------------------------------------------------------------------
+async def run_all_performance_tests(product_id: str) -> int:
+    """
+    Execute **all** performance‑test extractors for the given product.
+    Equivalent to the previous default behaviour.
+    """
+    return await analyze_performance_testing(product_id)
+
+
+async def run_performance_test_card(product_id: str, card_id: str) -> int:
+    """
+    Execute ONLY the performance‑test card with the given *card_id*.
+
+    `card_id` is the `_id` of a **PerformanceTestCard** stored in the
+    `performance_test_plan` collection.
+    """
+    return await analyze_performance_testing(product_id, card_ids=[card_id])

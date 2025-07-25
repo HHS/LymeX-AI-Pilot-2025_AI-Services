@@ -8,7 +8,11 @@ from src.modules.competitive_analysis.analyze import analyze_competitive_analysi
 from src.modules.index_system_data.analyze import (
     index_system_data,
 )
-from src.modules.performance_testing.analyze import analyze_performance_testing
+from src.modules.performance_testing.analyze import (
+    analyze_performance_testing,
+    run_all_performance_tests,
+    run_performance_test_card,
+)
 from src.modules.product_profile.analyze import analyze_product_profile
 from src.modules.regulatory_pathway.analyze import analyze_regulatory_pathway
 from src.modules.test_comparison.analyze import analyze_test_comparison
@@ -53,8 +57,17 @@ async def analyze_competitive_analysis_handler(
 @app.post("/analyze-performance-testing")
 async def analyze_performance_testing_handler(
     product_id: str,
+    performance_testing_id: str | None = None,
 ) -> None:
-    await analyze_performance_testing(product_id)
+    print("=============================================")
+    print("=============================================")
+    print(
+        f"Analyzing performance testing for product {product_id} with ID {performance_testing_id}"
+    )
+    if performance_testing_id:
+        await run_performance_test_card(product_id, performance_testing_id)
+    else:
+        await run_all_performance_tests(product_id)
 
 
 @app.post("/analyze-product-profile")

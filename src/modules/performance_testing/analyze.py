@@ -444,6 +444,7 @@ async def analyze_performance_testing(
         return
 
     progress = AnalyzePTProgress()
+    await progress.init(product_id, total_files=1)
 
     num_files = -1
 
@@ -455,6 +456,9 @@ async def analyze_performance_testing(
             plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
 
         # ── Decide which section(s) we really need to extract ──────────────
+        print('=============================================')
+        print('=============================================')
+        print(f"Analyzing performance testing for {product_id} with plan: {plan_doc}")
         if plan_doc and plan_doc.tests:
             if card_ids:
                 # user asked for *specific* card(s)
@@ -483,7 +487,6 @@ async def analyze_performance_testing(
         # pull doc list from MinIO if caller didn’t hand us explicit IDs
 
         # initialise progress BEFORE starting extraction
-        await progress.init(product_id, total_files=1)
         if not attachment_ids:
             docs = await get_performance_testing_documents(product_id)
 

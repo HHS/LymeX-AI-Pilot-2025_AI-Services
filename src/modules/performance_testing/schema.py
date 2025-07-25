@@ -28,9 +28,9 @@ class ModuleStatus(str, enum.Enum):
 class TestStatus(str, enum.Enum):
     """Test Status based on AI and User input"""
 
-    SUGGESTED = "Suggested"  # Test suggested by AI
-    ACCEPTED = "Accepted"  # Test Accepted by User
-    REJECTED = "Rejected"  # Test Rejected by User
+    SUGGESTED = "suggested"  # Test suggested by AI
+    ACCEPTED = "accepted"  # Test Accepted by User
+    REJECTED = "rejected"  # Test Rejected by User
 
 
 class PerformanceTestingConfidentLevel(str, enum.Enum):

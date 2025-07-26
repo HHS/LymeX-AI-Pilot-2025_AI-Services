@@ -59,8 +59,19 @@ async def do_analyze_product_profile(product_id: str) -> None:
     )
 
     # Save profile
+    existing_profile = await ProductProfile.find_one(
+        ProductProfile.product_id == product_id
+    )
+    if existing_profile:
+        description = existing_profile.description
+    else:
+        description = result.description
     await ProductProfile.find(ProductProfile.product_id == product_id).delete_many()
-    record = {**result.model_dump(), "product_id": product_id}
+    record = {
+        **result.model_dump(),
+        "description": description,
+        "product_id": product_id,
+    }
     await ProductProfile(**record).save()
 
     logger.info(f"Saved product profile for {product_id}")

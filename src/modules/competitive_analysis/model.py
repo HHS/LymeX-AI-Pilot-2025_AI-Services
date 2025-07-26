@@ -21,11 +21,14 @@ class CompetitiveAnalysis(Document):
 
 
 class CompetitiveAnalysisDetail(Document, CompetitiveAnalysisDetailBase):
+    document_hash: str
+    document_names: list[str]
     product_simple_name: str
     confidence_score: float
     sources: list[CompetitiveAnalysisSource]
     is_ai_generated: bool
     use_system_data: bool
+    data_type: str
 
     class Settings:
         name = "competitive_analysis_detail"

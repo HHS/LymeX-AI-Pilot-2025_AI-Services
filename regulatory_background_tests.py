@@ -1,11 +1,7 @@
-# tests/test_regulatory_background_with_MongoDB.py
-#
 # End‑to‑end test for the Regulatory‑Background pipeline:
 #   1. Upload one (or more) meeting minutes PDFs to MinIO via a presigned URL
 #   2. Run analyze_regulatory_background() to extract & evaluate regulatory info
 #   3. Print what was stored in MongoDB
-#
-# Usage: python tests/test_regulatory_background_with_MongoDB.py
 
 import os, asyncio, mimetypes, httpx
 from unittest.mock import patch
@@ -57,9 +53,9 @@ class DummyLock:
 async def main() -> None:
     await init_beanie()
 
-    product_id = "TEST-RB-001"   # Use a unique test ID each time
+    product_id = "TEST-RB-001"   
 
-    # ① Upload PDF(s) to MinIO
+    # Upload PDF(s) to MinIO
     for pdf_path in [
         r"C:/Users/yishu/Downloads/iTICK_Q244515_Pre-submission_Meeting_Minutes.pdf",  # <--- UPDATE path
     ]:
@@ -69,18 +65,18 @@ async def main() -> None:
         )
         await put_to_presigned(presigned, pdf_path)
 
-    # ② Trigger the regulatory background analysis
+    # Trigger the regulatory background analysis
     with patch("src.modules.regulatory_background.analyze.redis_client.lock",
                return_value=DummyLock()):
         await analyze_regulatory_background(product_id)
 
-    # ③ Inspect what got stored
+    # Inspect what got stored
     profile = await RegulatoryBackground.find_one({"product_id": product_id})
     if profile:
-        print("🧾 Stored regulatory background:\n",
+        print(" Stored regulatory background:\n",
               profile.model_dump_json(indent=2, by_alias=True))
     else:
-        print("⚠️  No RegulatoryBackground record found!")
+        print("  No RegulatoryBackground record found!")
 
 if __name__ == "__main__":
     asyncio.run(main())

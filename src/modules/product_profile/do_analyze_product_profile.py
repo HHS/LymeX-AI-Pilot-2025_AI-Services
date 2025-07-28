@@ -1,6 +1,8 @@
 from pathlib import Path
 import yaml
 import os
+import random
+import string
 from loguru import logger
 from src.modules.product_profile.model import (
     ProductProfile,
@@ -9,6 +11,14 @@ from src.modules.product_profile.schema import ProductProfileSchema
 from src.modules.product_profile.storage import get_product_profile_documents
 from src.services.openai.extract_files_data import extract_files_data
 
+
+async def generate_unique_product_code() -> str:
+    for _ in range(1000):  # retry up to 1000 times
+        code = ''.join(random.choices(string.ascii_uppercase, k=3))
+        exists = await ProductProfile.find_one({"product_code": code})
+        if not exists:
+            return code
+    raise RuntimeError("Failed to generate a unique 3-letter product code after many attempts.")
 
 def load_questionnaire_text():
     path = os.path.join("src", "resources", "device_description_questionnaire.yaml")
@@ -61,6 +71,16 @@ async def do_analyze_product_profile(product_id: str) -> None:
     # Save profile
     await ProductProfile.find(ProductProfile.product_id == product_id).delete_many()
     record = {**result.model_dump(), "product_id": product_id}
+    # Ensure uppercase product_code before save
+    if "product_code" in record:
+        record["product_code"] = await generate_unique_product_code()
+    
+    # Ensure nested regulatory_classifications uses the same code
+    if "regulatory_classifications" in record:
+        for item in record["regulatory_classifications"]:
+            item["product_code"] = record["product_code"]
+
+    
     await ProductProfile(**record).save()
 
     logger.info(f"Saved product profile for {product_id}")

@@ -58,7 +58,8 @@ class ProductProfileSchemaBase:
         [],
         description="List of regulatory classifications",
     )
-    product_code: str = Field("Not Available", description="Product code")
+    product_code: str = Field("NAN", description="Product code")
+    
     regulation_number: str = Field("Not Available", description="Regulation Number")
     analytical_sensitivity: str = Field(
         "Not Available", description="Analytical Sensitivity"

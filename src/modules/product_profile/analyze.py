@@ -21,13 +21,13 @@ async def analyze_product_profile(product_id: str) -> None:
         try:
             await do_analyze_product_profile(product_id)
         except Exception as exc:
-            logger.error(f"Error analyzing {product_id}: {exc}")
+            logger.exception(f"Error analyzing {product_id}: {exc}")
             raise
         finally:
             await progress.complete()
 
     except Exception as exc:
-        logger.error(f"Error analyzing {product_id}: {exc}")
+        logger.exception(f"Error analyzing {product_id}: {exc}")
         await progress.err()
         raise
 

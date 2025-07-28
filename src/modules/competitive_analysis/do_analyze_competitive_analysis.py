@@ -9,6 +9,7 @@ from src.modules.competitive_analysis.download_system_product_competitive_docume
     download_system_product_competitive_documents,
 )
 from src.modules.competitive_analysis.download_user_product_competitive_documents import (
+    Document,
     download_user_product_competitive_documents,
 )
 from src.modules.competitive_analysis.model import (
@@ -26,20 +27,20 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     logger.info(f"Starting competitive analysis for product_id={product_id}")
 
     product_profile_documents = await get_product_profile_documents(product_id)
-    logger.debug(
+    logger.info(
         f"Fetched {len(product_profile_documents)} product profile documents for product_id={product_id}"
     )
 
     product_profile_document_paths = [
         Path(doc.path) for doc in product_profile_documents if doc.path
     ]
-    logger.debug(f"Product profile document paths: {product_profile_document_paths}")
+    logger.info(f"Product profile document paths: {product_profile_document_paths}")
 
     product_profile_summary = await summarize_files(product_profile_document_paths)
     logger.info(f"Product profile summary for {product_id}: {product_profile_summary}")
 
     q_vector = await embed_text(product_profile_summary.summary)
-    logger.debug(
+    logger.info(
         f"Embedded product profile summary into vector for product_id={product_id}"
     )
 
@@ -50,10 +51,36 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     logger.info(
         f"Downloaded {len(system_competitor_documents)} system competitor documents for product_id={product_id}"
     )
+    logger.info(system_competitor_documents)
+
+    exist_competitive_analysis = await CompetitiveAnalysis.find(
+        CompetitiveAnalysis.product_id == product_id
+    ).to_list()
+    exist_competitive_analysis_ids = [
+        analysis.competitive_analysis_detail_id
+        for analysis in exist_competitive_analysis
+    ]
+    if exist_competitive_analysis_ids:
+        exist_competitive_analysis_details = await CompetitiveAnalysisDetail.find(
+            In(CompetitiveAnalysisDetail.id, exist_competitive_analysis_ids)
+        ).to_list()
+        logger.info(
+            f"Found {len(exist_competitive_analysis_details)} existing competitive analysis details for product_id={product_id}"
+        )
+    else:
+        exist_competitive_analysis_details = []
+
+    to_simple_name_map = {
+        doc.product_name: doc.product_simple_name
+        for doc in exist_competitive_analysis_details
+    }
+
+    logger.info(f"Simple name map: {to_simple_name_map}")
 
     user_competitor_documents = await download_user_product_competitive_documents(
         product_id,
         q_vector,
+        to_simple_name_map,
     )
     logger.info(
         f"Downloaded {len(user_competitor_documents)} user competitor documents for product_id={product_id}"
@@ -64,16 +91,16 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     for i, sys_doc in enumerate(system_competitor_documents):
         user_doc = user_docs_map.get(sys_doc.product_name)
         if user_doc is not None:
-            logger.debug(
+            logger.info(
                 f"Merging system doc '{sys_doc.product_name}' into user competitor documents"
             )
-            user_doc.user_product_competitive_documents.append(
-                sys_doc.system_product_competitive_document
+            user_doc.product_competitive_documents.append(
+                Document(path=sys_doc.product_competitive_document, key=sys_doc.key)
             )
             to_remove_index.append(i)
 
     for i in reversed(to_remove_index):
-        logger.debug(f"Removing merged system competitor document at index {i}")
+        logger.info(f"Removing merged system competitor document at index {i}")
         system_competitor_documents.pop(i)
 
     logger.info(
@@ -97,6 +124,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
                 for doc in product_profile_documents
                 if doc.path
             ],
+            data_type="self_analysis",
         )
     ]
 
@@ -106,15 +134,16 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     system_tasks = [
         create_competitive_analysis(
             product_simple_name=comp_doc.product_name,
-            document_paths=[comp_doc.system_product_competitive_document],
+            document_paths=[comp_doc.product_competitive_document],
             confidence_score=comp_doc.confidence_score,
             use_system_data=True,
             sources=[
                 CompetitiveAnalysisSource(
-                    name=comp_doc.system_product_competitive_document.name,
+                    name=comp_doc.product_competitive_document.name,
                     key=comp_doc.key,
                 )
             ],
+            data_type="system_competitor",
         )
         for comp_doc in system_competitor_documents
     ]
@@ -126,16 +155,19 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     user_tasks = [
         create_competitive_analysis(
             product_simple_name=comp_docs.product_name,
-            competitor_document_paths=comp_docs.user_product_competitive_documents,
+            document_paths=[
+                comp_doc.path for comp_doc in comp_docs.product_competitive_documents
+            ],
             confidence_score=comp_docs.confidence_score,
             use_system_data=False,
             sources=[
                 CompetitiveAnalysisSource(
-                    name=comp_docs.system_product_competitive_document.name,
-                    key=comp_docs.key,
+                    name=comp_doc.path.name,
+                    key=comp_doc.key if hasattr(comp_doc, "key") else comp_docs.key,
                 )
-                for comp_doc in comp_docs.user_product_competitive_documents
+                for comp_doc in comp_docs.product_competitive_documents
             ],
+            data_type="user_competitor",
         )
         for comp_docs in user_competitor_documents
     ]
@@ -145,36 +177,18 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     logger.info(
         f"Removing existing competitive analysis records for product_id={product_id}"
     )
-    existing_records = await CompetitiveAnalysis.find(
-        CompetitiveAnalysis.product_id == product_id
-    ).to_list()
-    competitive_analysis_detail_ids = [
-        record.competitive_analysis_detail_id for record in existing_records
-    ]
-    await CompetitiveAnalysisDetail.find(
-        In(CompetitiveAnalysisDetail.id, competitive_analysis_detail_ids)
-    ).delete_many()
-    logger.info(
-        f"Removed {len(existing_records)} existing competitive analysis records for product_id={product_id}"
-    )
     await CompetitiveAnalysis.find(
         CompetitiveAnalysis.product_id == product_id
     ).delete_many()
-    logger.info(
-        f"Removed {len(existing_records)} existing competitive analysis records from CompetitiveAnalysis collection for product_id={product_id}"
-    )
-
     # --- RUN ALL TASKS IN PARALLEL ---
     logger.info("Running all competitive analysis tasks in parallel")
-    competitive_analysis_details: list[CompetitiveAnalysisDetail] = (
-        await async_gather_with_max_concurrent(
-            [
-                *self_tasks,
-                *system_tasks,
-                *user_tasks,
-            ]
-        )
-    )
+    competitive_analysis_details: list[
+        CompetitiveAnalysisDetail
+    ] = await async_gather_with_max_concurrent([
+        *self_tasks,
+        *system_tasks,
+        *user_tasks,
+    ])
     logger.info(
         f"Completed {len(competitive_analysis_details)} competitive analysis tasks"
     )

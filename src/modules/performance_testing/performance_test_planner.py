@@ -321,7 +321,7 @@ async def create_plan(
 
     llm_out = await _poll_function_json(client, thread.id, run.id, "return_test_plan")
     # debugging
-    logger.debug(
+    logger.info(
         "🔍 Raw planner output:\n{}", json.dumps(llm_out, indent=2, ensure_ascii=False)
     )
 

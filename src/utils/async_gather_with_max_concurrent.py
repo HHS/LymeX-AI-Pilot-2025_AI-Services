@@ -30,9 +30,9 @@ async def async_gather_with_max_concurrent(
     async def sem_task(idx, task):
         async with semaphore:
             try:
-                logger.debug(f"[{task_name}] Task {idx}: started.")
+                logger.info(f"[{task_name}] Task {idx}: started.")
                 result = await task
-                logger.debug(f"[{task_name}] Task {idx}: completed.")
+                logger.info(f"[{task_name}] Task {idx}: completed.")
                 return result
             except Exception as exc:
                 logger.error(

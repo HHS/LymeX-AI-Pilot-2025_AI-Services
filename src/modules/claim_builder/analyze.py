@@ -77,6 +77,10 @@ async def analyze_claim_builder(product_id: str) -> None:
     lock_key = f"NOIS2:Background:AnalyzeClaimBuilder:AnalyzeLock:{product_id}"
     lock = redis_client.lock(lock_key, timeout=150)
 
+    # --------------------------------- progress doc --------------------------------- #
+    progress = AnalyzeProgress()
+    await progress.init(product_id=product_id, total_files=1)
+
     if not await lock.acquire(blocking=False):
         logger.info("[%s] another job in progress – skipping", product_id)
         return
@@ -114,10 +118,6 @@ async def analyze_claim_builder(product_id: str) -> None:
                 file_paths.append(Path(d.path))
             else:
                 file_paths.append(await _download_to_tmp(d.url))
-
-        # --------------------------------- progress doc --------------------------------- #
-        progress = AnalyzeProgress()
-        await progress.init(product_id=product_id, total_files=len(file_paths))
 
         # --------------------------------- OpenAI call ---------------------------------- #
         system_prompt = _build_system_prompt(ClaimBuilder)

@@ -9,7 +9,6 @@ from src.modules.index_system_data.analyze import (
     index_system_data,
 )
 from src.modules.performance_testing.analyze import (
-    analyze_performance_testing,
     run_all_performance_tests,
     run_performance_test_card,
 )
@@ -59,11 +58,6 @@ async def analyze_performance_testing_handler(
     product_id: str,
     performance_testing_id: str | None = None,
 ) -> None:
-    print("=============================================")
-    print("=============================================")
-    print(
-        f"Analyzing performance testing for product {product_id} with ID {performance_testing_id}"
-    )
     if performance_testing_id:
         await run_performance_test_card(product_id, performance_testing_id)
     else:

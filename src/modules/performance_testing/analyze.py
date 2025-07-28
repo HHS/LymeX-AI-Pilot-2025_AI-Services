@@ -299,7 +299,7 @@ async def _generic_extract(
 
     try:
         obj = schema_cls.parse_obj(record)
-        logger.debug("🔍 {} JSON:\n{}", tool_name, json.dumps(record, indent=2))
+        logger.info("🔍 {} JSON:\n{}", tool_name, json.dumps(record, indent=2))
     except Exception as exc:
         logger.warning("{} validation failed: {}", tool_name, exc)
         return

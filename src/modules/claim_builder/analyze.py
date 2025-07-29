@@ -8,6 +8,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 
+from beanie import PydanticObjectId
 import httpx
 from fastapi import HTTPException
 from loguru import logger
@@ -20,7 +21,10 @@ from src.modules.product_profile.model import ProductProfile
 from src.modules.product_profile.storage import get_product_profile_documents
 from .model import ClaimBuilder
 from .analyze_progress import AnalyzeProgress
-from src.modules.competitive_analysis.model import CompetitiveAnalysis
+from src.modules.competitive_analysis.model import (
+    CompetitiveAnalysis,
+    CompetitiveAnalysisDetail,
+)
 
 
 # --------------------------------------------------------------------- #
@@ -156,14 +160,29 @@ async def analyze_claim_builder(product_id: str) -> None:
         result.product_id = product_id
         result.is_user_input = False  # mark as AI analysis complete
 
-        # get Competetive analysis
-        comp_analysis = await CompetitiveAnalysis.find_one({"product_id": product_id})
-        # if Competetive analysis available then assign indications for use statement else skip
-        if comp_analysis and getattr(comp_analysis, "indications_for_use_statement", None):
-            result.draft[0].content = comp_analysis.indications_for_use_statement
+        # ── Fetch profile for rule-engine (if you keep rules) ──
+        sleep_time = 5
+        max_retries = 20  # 100 seconds max
+        for _ in range(max_retries):
+            competitive_analysis = await CompetitiveAnalysis.find_one(
+                CompetitiveAnalysis.product_id == product_id,
+                CompetitiveAnalysis.is_self_analysis == True,
+            )
+            if competitive_analysis:
+                break
+            logger.warning("⏳  Waiting for Competitive-Analysis to be available...")
+            await asyncio.sleep(sleep_time)
+        else:
+            logger.error("Competitive-Analysis not available after retries")
+        if competitive_analysis:
+            competitive_analysis_detail = await CompetitiveAnalysisDetail.get(
+                competitive_analysis.competitive_analysis_detail_id
+            )
+            result.draft[
+                0
+            ].content = competitive_analysis_detail.indications_for_use_statement
         else:
             logger.info("Competitive Analysis data not available for  %s", product_id)
-
         await result.save()
 
         await progress.complete()

@@ -72,6 +72,9 @@ async def do_analyze_product_profile(product_id: str) -> None:
         "description": description,
         "product_id": product_id,
     }
+    if "regulatory_classifications" in record:
+        for item in record["regulatory_classifications"]:
+            item["product_code"] = record["product_code"]
     await ProductProfile(**record).save()
 
     logger.info(f"Saved product profile for {product_id}")

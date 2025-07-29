@@ -57,6 +57,9 @@ async def init_db() -> None:
             AnalyzePerformanceTestingProgress,
         ],
     )
+    
+    # await ProductProfile.create_index("product_code", unique=True)
+    
     logger.info(
         "Database connection initialized successfully. Initializing email templates..."
     )

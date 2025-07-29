@@ -41,6 +41,8 @@ async def analyze_regulatory_background_document(
         or mimetypes.guess_type(file_name)[0]
         or "application/octet-stream",
         size=obj.size,
+        key=obj.object_name,
+        path=f"/tmp/{document_name}",
     )
     return document
 

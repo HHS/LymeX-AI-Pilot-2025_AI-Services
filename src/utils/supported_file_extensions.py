@@ -88,10 +88,17 @@ async def convert_supported_file_extension_to_pdf(file_path: Path) -> Path:
 
 
 # ---------------------- Text/Markdown/CSV/JSON to PDF ---------------------- #
+
+
+def ensure_font(
+    pdf: FPDF, font_path: str = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+):
+    # Đăng ký font Unicode
+    pdf.add_font("DejaVu", "", font_path, uni=True)
+    pdf.set_font("DejaVu", "", 12)
+
+
 async def convert_text_to_pdf(file_path: Path, pdf_path: Path) -> None:
-    """
-    Convert a plain text, markdown, CSV, or JSON file to PDF.
-    """
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -101,10 +108,14 @@ async def convert_text_to_pdf(file_path: Path, pdf_path: Path) -> None:
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    # For huge files, consider paging:
+    ensure_font(pdf)
+
     for line in content.splitlines():
-        pdf.cell(0, 10, txt=line, ln=True)
+        try:
+            pdf.cell(0, 10, txt=line, ln=True)
+        except Exception as e:
+            logger.error(f"Lỗi dòng: {line} | {e}")
+
     try:
         pdf.output(str(pdf_path))
     except Exception as e:

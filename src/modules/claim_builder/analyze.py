@@ -156,14 +156,25 @@ async def analyze_claim_builder(product_id: str) -> None:
         result.product_id = product_id
         result.is_user_input = False  # mark as AI analysis complete
 
-        # get Competetive analysis
-        comp_analysis = await CompetitiveAnalysis.find_one({"product_id": product_id})
-        # if Competetive analysis available then assign indications for use statement else skip
-        if comp_analysis and getattr(comp_analysis, "indications_for_use_statement", None):
-            result.draft[0].content = comp_analysis.indications_for_use_statement
+        # ── Fetch profile for rule-engine (if you keep rules) ──
+        sleep_time = 5
+        max_retries = 20  # 100 seconds max
+        for _ in range(max_retries):
+            competitive_analysis = await CompetitiveAnalysis.find_one({
+                "product_id": product_id
+            })
+            if competitive_analysis:
+                break
+            logger.warning("⏳  Waiting for Competitive-Analysis to be available...")
+            await asyncio.sleep(sleep_time)
+        else:
+            logger.error("Competitive-Analysis not available after retries")
+        if competitive_analysis and getattr(
+            competitive_analysis, "indications_for_use_statement", None
+        ):
+            result.draft[0].content = competitive_analysis.indications_for_use_statement
         else:
             logger.info("Competitive Analysis data not available for  %s", product_id)
-
         await result.save()
 
         await progress.complete()

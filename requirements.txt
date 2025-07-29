@@ -10,7 +10,7 @@ fastavro
 httpx
 tenacity
 qdrant-client
-fpdf
+fpdf2
 markdown
 scikit-learn
 motor

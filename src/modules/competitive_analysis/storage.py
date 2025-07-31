@@ -34,6 +34,8 @@ async def analyze_competitive_analysis_document(
     file_name = analysis_document_info["file_name"]
     url = await generate_get_object_presigned_url(obj.object_name)
     path = await download_minio_file(obj.object_name)
+    path.rename(path.parent / file_name)
+    path = path.parent / file_name
     document = CompetitiveAnalysisDocumentResponse(
         document_name=document_name,
         file_name=file_name,

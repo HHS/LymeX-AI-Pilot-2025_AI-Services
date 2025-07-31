@@ -13,6 +13,7 @@ from src.modules.performance_testing.analyze import (
     run_performance_test_card,
 )
 from src.modules.product_profile.analyze import analyze_product_profile
+from src.modules.regulatory_background.analyze import analyze_regulatory_background
 from src.modules.regulatory_pathway.analyze import analyze_regulatory_pathway
 from src.modules.test_comparison.analyze import analyze_test_comparison
 
@@ -71,11 +72,11 @@ async def analyze_product_profile_handler(
     await analyze_product_profile(product_id)
 
 
-# @app.post("/analyze-regulatory-background")
-# async def analyze_regulatory_background_handler(
-#     product_id: str,
-# ) -> None:
-#     await analyze_regulatory_background(product_id)
+@app.post("/analyze-regulatory-background")
+async def analyze_regulatory_background_handler(
+    product_id: str,
+) -> None:
+    await analyze_regulatory_background(product_id)
 
 
 @app.post("/analyze-regulatory-pathway")

@@ -51,6 +51,10 @@ async def convert_supported_file_extension_to_pdf(file_path: Path) -> Path:
 
     pdf_path = file_path.with_suffix(".pdf")
 
+    if pdf_path.exists() and pdf_path.stat().st_size > 0:
+        logger.info(f"PDF file {pdf_path} is ready.")
+        return pdf_path
+
     if ext in text_file_extensions:
         await convert_text_to_pdf(file_path, pdf_path)
         return pdf_path

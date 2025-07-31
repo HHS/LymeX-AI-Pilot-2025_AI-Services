@@ -23,6 +23,7 @@ from src.modules.product_profile.model import (
     AnalyzeProductProfileProgress,
     ProductProfile,
 )
+from src.modules.regulatory_background.model import AnalyzeRegulatoryBackgroundProgress, RegulatoryBackground
 from src.modules.regulatory_pathway.model import (
     AnalyzeRegulatoryPathwayProgress,
     RegulatoryPathway,
@@ -55,6 +56,8 @@ async def init_db() -> None:
             AnalyzeRegulatoryPathwayProgress,
             PerformanceTestPlan,
             AnalyzePerformanceTestingProgress,
+            RegulatoryBackground,
+            AnalyzeRegulatoryBackgroundProgress,
         ],
     )
     

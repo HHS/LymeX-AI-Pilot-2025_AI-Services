@@ -1,32 +1,50 @@
 from pydantic import BaseModel, Field
+from typing import List, Optional
 
+# ===== SUMMARY =====
+class RegulatorySummaryHighlight(BaseModel):
+    title: str
+    detail: str
 
-class RegulatoryBackgroundContent(BaseModel):
-    title: str = Field(..., description="Title of the regulatory background content")
-    content: str = Field(..., description="Content of the regulatory background")
-    suggestion: str = Field(..., description="Suggestion for the regulatory background")
+class RegulatorySummary(BaseModel):
+    title: str
+    description: str
+    highlights: List[RegulatorySummaryHighlight]
 
+# ===== FINDINGS =====
+class RegulatoryFinding(BaseModel):
+    status: str  # "found" or "missing"
+    field: str
+    label: str
+    value: Optional[str]
+    sourceFile: Optional[str]
+    sourcePage: Optional[int]
+    tooltip: Optional[str] = None
+    suggestion: Optional[str] = None
+    confidenceScore: Optional[int] = None
+    userAction: Optional[bool] = None
 
-class RegulatoryBackgroundBase:
-    predicate_device_reference: RegulatoryBackgroundContent
-    clinical_trial_requirements: RegulatoryBackgroundContent
-    risk_classification: RegulatoryBackgroundContent
-    regulatory_submission_history: RegulatoryBackgroundContent
-    intended_use_statement: RegulatoryBackgroundContent
+# ===== CONFLICTS =====
+class RegulatoryConflict(BaseModel):
+    field: str
+    phrase: str
+    conflict: str
+    source: str
+    suggestion: Optional[str] = None
+    userAction: Optional[bool] = None
 
+# ===== MAIN SCHEMA =====
+class RegulatoryBackgroundSchema(BaseModel):
+    summary: RegulatorySummary
+    findings: List[RegulatoryFinding]
+    conflicts: List[RegulatoryConflict]
 
-class RegulatoryBackgroundSchema(BaseModel, RegulatoryBackgroundBase): ...
-
-
+# ===== DOCUMENT METADATA =====
 class RegulatoryBackgroundDocumentResponse(BaseModel):
-    document_name: str = Field(
-        ..., description="Name of the regulatory background document"
-    )
+    document_name: str = Field(..., description="Name of the regulatory background document")
     file_name: str = Field(..., description="Name of the document")
     url: str = Field(..., description="URL to access the document")
-    uploaded_at: str = Field(
-        ..., description="Date and time when the document was uploaded"
-    )
+    uploaded_at: str = Field(..., description="Date and time when the document was uploaded")
     author: str = Field(..., description="Author of the document")
     size: int = Field(..., description="Size of the document in bytes")
     key: str = Field(..., description="Key of the document in the storage system")

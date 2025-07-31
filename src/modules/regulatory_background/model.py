@@ -2,11 +2,11 @@ from datetime import datetime
 from beanie import Document, PydanticObjectId
 
 from src.modules.regulatory_background.schema import (
-    RegulatoryBackgroundBase,
+    RegulatoryBackgroundSchema,
 )
 
 
-class RegulatoryBackground(Document, RegulatoryBackgroundBase):
+class RegulatoryBackground(Document, RegulatoryBackgroundSchema):
     product_id: str
 
     class Settings:

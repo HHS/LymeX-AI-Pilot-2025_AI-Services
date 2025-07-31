@@ -50,26 +50,6 @@ async def convert_supported_file_extension_to_pdf(file_path: Path) -> Path:
     logger.info(f"Converting {file_path} (type: {ext}) to PDF")
 
     pdf_path = file_path.with_suffix(".pdf")
-    # Create empty PDF with value is 1 as a lock and make other processes wait and get result
-    # not to convert the same file multiple times
-    lock_value = "1"
-    if pdf_path.exists():
-        logger.info(f"PDF already exists: {pdf_path}")
-        retries = 10  # Wait for 10 seconds for the file to be ready
-        for _ in range(retries):
-            # Check if the file is no longer a lock file by verifying its size is greater than 1 byte
-            if pdf_path.stat().st_size > len(lock_value):
-                logger.info(f"PDF file {pdf_path} is ready.")
-                return pdf_path
-            logger.info(
-                f"Waiting for PDF file {pdf_path} to be ready...  Retrying {_ + 1} times..."
-            )
-            await asyncio.sleep(1)
-        logger.error(
-            f"PDF file {pdf_path} still not ready after {retries} seconds, aborting conversion."
-        )
-    else:
-        pdf_path.write_text(lock_value)
 
     if ext in text_file_extensions:
         await convert_text_to_pdf(file_path, pdf_path)
@@ -124,16 +104,16 @@ async def convert_text_to_pdf(file_path: Path, pdf_path: Path) -> None:
     logger.info(f"Converted {file_path} to {pdf_path}")
 
 
+libreoffice_lock = asyncio.Lock()
+
+
 # ---------------------- Office File to PDF (using LibreOffice) ---------------------- #
 async def convert_office_to_pdf(
     file_path: Path,
     pdf_path: Path,
     timeout: int = 60,
 ) -> None:
-    """
-    Convert an office file (Word, Excel, PowerPoint) to PDF using LibreOffice CLI.
-    """
-    pdf_dir = file_path.parent
+    pdf_dir = pdf_path.parent  # also fix as previously recommended
     cmd = [
         "libreoffice",
         "--headless",
@@ -144,25 +124,29 @@ async def convert_office_to_pdf(
         str(file_path),
     ]
     logger.info(f"Running: {' '.join(cmd)}")
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        logger.error(f"Timeout during conversion of {file_path}")
-        raise RuntimeError("LibreOffice conversion timed out")
-    if proc.returncode != 0:
-        logger.error(f"LibreOffice failed: {stderr.decode().strip()}")
-        raise RuntimeError(
-            f"LibreOffice failed (exit {proc.returncode}): {stderr.decode().strip()}"
+
+    async with libreoffice_lock:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-    if not pdf_path.exists():
-        logger.error(f"Expected output not found: {pdf_path}")
-        raise FileNotFoundError(f"Output PDF not found: {pdf_path}")
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            logger.error(f"Timeout during conversion of {file_path}")
+            raise RuntimeError("LibreOffice conversion timed out")
+
+        if proc.returncode != 0:
+            logger.error(f"LibreOffice failed: {stderr.decode().strip()}")
+            raise RuntimeError(
+                f"LibreOffice failed (exit {proc.returncode}): {stderr.decode().strip()}"
+            )
+        if not pdf_path.exists():
+            logger.error(f"Expected output not found: {pdf_path}")
+            raise FileNotFoundError(f"Output PDF not found: {pdf_path}")
+
     logger.info(f"Converted {file_path} to {pdf_path}")
 
 

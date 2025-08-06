@@ -16,6 +16,7 @@ from src.modules.product_profile.analyze import analyze_product_profile
 from src.modules.regulatory_background.analyze import analyze_regulatory_background
 from src.modules.regulatory_pathway.analyze import analyze_regulatory_pathway
 from src.modules.test_comparison.analyze import analyze_test_comparison
+from src.modules.checklist.analyze import analyze_checklist
 
 
 @asynccontextmanager
@@ -91,6 +92,13 @@ async def analyze_test_comparison_handler(
     product_id: str,
 ) -> None:
     await analyze_test_comparison(product_id)
+
+
+@app.post("/analyze-checklist")
+async def analyze_checklist_handler(
+    product_id: str,
+) -> None:
+    await analyze_checklist(product_id)
 
 
 @app.post("/index-system-data")

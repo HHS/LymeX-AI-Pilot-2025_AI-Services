@@ -115,6 +115,8 @@ class PerformanceTestingDocumentResponse(BaseModel):
         ..., description="Content type of the document (e.g., PDF, DOCX)"
     )
     size: int = Field(..., description="Size of the document in bytes")
+    key: str = Field(..., description="Key of the document in the storage system")
+    path: str = Field(..., description="Path to the document in the local machine")
 
 
 # ------------------------------ Primitive nested objects – reused by multiple sub‑schemas ------------------------------

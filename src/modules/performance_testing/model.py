@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from beanie import Document, PydanticObjectId
 from pydantic import Field
+from typing import Optional
 
 from src.modules.performance_testing.schema import (
     AnalyticalStudy,
@@ -35,6 +36,8 @@ class PerformanceTesting(Document):
     shelf_life: ShelfLife | None = None
     cybersecurity: CyberSecurity | None = None
     overall_risk_level: RiskLevel | None = None
+    magnetic_resonance_safety: Optional[str] = None  # Sterility Assurance Level Q112
+    literature_references_included: Optional[bool] = None # Q113
     status: ModuleStatus = ModuleStatus.PENDING
     missing_items: list[str] = Field([])
     created_at: datetime = Field(default_factory=datetime.utcnow)

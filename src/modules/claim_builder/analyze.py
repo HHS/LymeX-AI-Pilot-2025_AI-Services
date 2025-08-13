@@ -124,6 +124,31 @@ async def analyze_claim_builder(product_id: str) -> None:
             else:
                 file_paths.append(await _download_to_tmp(d.url))
 
+        # --- Load previously accepted items to suppress repeats on re-run ---
+        previous_cb = await ClaimBuilder.find_one(ClaimBuilder.product_id == product_id)
+
+        accepted_issue_titles: set[str] = set()
+        accepted_missing_titles: set[str] = set()
+        accepted_conflict_statements: set[str] = set()
+
+        if previous_cb:
+            # Issues (flag may not exist on older docs)
+            for i in (previous_cb.issues or []):
+                if getattr(i, "accepted", None) is True and i.title:
+                    accepted_issue_titles.add(i.title.strip().lower())
+
+            # Missing Elements
+            for m in (previous_cb.missing_elements or []):
+                if getattr(m, "accepted", None) is True and m.title:
+                    accepted_missing_titles.add(m.title.strip().lower())
+
+            # Phrase Conflicts – treat as accepted if an accepted_fix exists
+            for p in (previous_cb.phrase_conflicts or []):
+                if getattr(p, "accepted_fix", None):
+                    if p.statement:
+                        accepted_conflict_statements.add(p.statement.strip().lower())
+
+
         # --------------------------------- OpenAI call ---------------------------------- #
         system_prompt = _build_system_prompt(ClaimBuilder)
         """user_msg = (
@@ -146,12 +171,53 @@ async def analyze_claim_builder(product_id: str) -> None:
             "no markdown, valid JSON only."
         )
 
+        # --- Instruct model to NOT re-report accepted items ---
+        if accepted_issue_titles or accepted_missing_titles or accepted_conflict_statements:
+            user_msg += (
+                "\n\nThe following items have ALREADY been accepted by the user in a"
+                " prior run. DO NOT re-report them unless there is a new, materially"
+                " different problem:\n"
+            )
+            if accepted_issue_titles:
+                user_msg += "\n- Accepted Issues:\n" + "\n".join(
+                    f"  • {t}" for t in sorted(accepted_issue_titles)
+                )
+            if accepted_missing_titles:
+                user_msg += "\n- Accepted Missing Elements:\n" + "\n".join(
+                    f"  • {t}" for t in sorted(accepted_missing_titles)
+                )
+            if accepted_conflict_statements:
+                user_msg += "\n- Accepted Phrase Conflict statements:\n" + "\n".join(
+                    f"  • {t}" for t in sorted(accepted_conflict_statements)
+        )
+
+
         result: ClaimBuilder = await extract_files_data(
             file_paths=file_paths,
             system_instruction=system_prompt,
             user_question=user_msg,
             model_class=ClaimBuilder,
         )
+
+        # --- Suppress any items accepted in a prior run (backend guarantee) ---
+        if getattr(result, "issues", None):
+            result.issues = [
+                i for i in result.issues
+                if i.title and i.title.strip().lower() not in accepted_issue_titles
+            ]
+
+        if getattr(result, "missing_elements", None):
+            result.missing_elements = [
+                m for m in result.missing_elements
+                if m.title and m.title.strip().lower() not in accepted_missing_titles
+            ]
+
+        if getattr(result, "phrase_conflicts", None):
+            result.phrase_conflicts = [
+                p for p in result.phrase_conflicts
+                if p.statement and p.statement.strip().lower() not in accepted_conflict_statements
+    ]
+
 
         # --------------------------------- DB insert ------------------------------------ #
         # clean old doc then insert the new one so _id stays stable

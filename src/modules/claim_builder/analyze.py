@@ -107,7 +107,7 @@ async def analyze_claim_builder(product_id: str) -> None:
         if profile is None:
             raise HTTPException(404, f"No ProductProfile found for '{product_id}'")
 
-        #ifu_text: str | None = getattr(profile, "instructions_for_use", None)
+        # ifu_text: str | None = getattr(profile, "instructions_for_use", None)
         ifu_raw = getattr(profile, "instructions_for_use", None)
         if not ifu_raw:
             raise HTTPException(
@@ -140,21 +140,20 @@ async def analyze_claim_builder(product_id: str) -> None:
 
         if previous_cb:
             # Issues (flag may not exist on older docs)
-            for i in (previous_cb.issues or []):
+            for i in previous_cb.issues or []:
                 if getattr(i, "accepted", None) is True and i.title:
                     accepted_issue_titles.add(i.title.strip().lower())
 
             # Missing Elements
-            for m in (previous_cb.missing_elements or []):
+            for m in previous_cb.missing_elements or []:
                 if getattr(m, "accepted", None) is True and m.title:
                     accepted_missing_titles.add(m.title.strip().lower())
 
             # Phrase Conflicts – treat as accepted if an accepted_fix exists
-            for p in (previous_cb.phrase_conflicts or []):
+            for p in previous_cb.phrase_conflicts or []:
                 if getattr(p, "accepted_fix", None):
                     if p.statement:
                         accepted_conflict_statements.add(p.statement.strip().lower())
-
 
         # --------------------------------- OpenAI call ---------------------------------- #
         system_prompt = _build_system_prompt(ClaimBuilder)
@@ -179,7 +178,11 @@ async def analyze_claim_builder(product_id: str) -> None:
         )
 
         # --- Instruct model to NOT re-report accepted items ---
-        if accepted_issue_titles or accepted_missing_titles or accepted_conflict_statements:
+        if (
+            accepted_issue_titles
+            or accepted_missing_titles
+            or accepted_conflict_statements
+        ):
             user_msg += (
                 "\n\nThe following items have ALREADY been accepted by the user in a"
                 " prior run. DO NOT re-report them unless there is a NEW, materially"
@@ -198,7 +201,6 @@ async def analyze_claim_builder(product_id: str) -> None:
                     f"  • {t}" for t in sorted(accepted_conflict_statements)
                 )
 
-
         result: ClaimBuilder = await extract_files_data(
             file_paths=file_paths,
             system_instruction=system_prompt,
@@ -209,26 +211,29 @@ async def analyze_claim_builder(product_id: str) -> None:
         # --- Suppress any items accepted in a prior run (backend guarantee) ---
         if getattr(result, "issues", None):
             result.issues = [
-                i for i in result.issues
+                i
+                for i in result.issues
                 if i.title and i.title.strip().lower() not in accepted_issue_titles
             ]
 
         if getattr(result, "missing_elements", None):
             result.missing_elements = [
-                m for m in result.missing_elements
+                m
+                for m in result.missing_elements
                 if m.title and m.title.strip().lower() not in accepted_missing_titles
             ]
 
         if getattr(result, "phrase_conflicts", None):
             result.phrase_conflicts = [
-                p for p in result.phrase_conflicts
-                if p.statement and p.statement.strip().lower() not in accepted_conflict_statements
+                p
+                for p in result.phrase_conflicts
+                if p.statement
+                and p.statement.strip().lower() not in accepted_conflict_statements
             ]
-
 
         # --------------------------------- DB insert ------------------------------------ #
         # clean old doc then insert the new one so _id stays stable
-        #await ClaimBuilder.find(ClaimBuilder.product_id == product_id).delete_many()
+        # await ClaimBuilder.find(ClaimBuilder.product_id == product_id).delete_many()
 
         # --------------------------------- DB merge ------------------------------------ #
         # NOTE: at this point 'result' contains ONLY new/open items (accepted ones were filtered)
@@ -258,9 +263,17 @@ async def analyze_claim_builder(product_id: str) -> None:
             )
             if existing_cb and (existing_cb.draft or result.draft):
                 if existing_cb.draft:
-                    existing_cb.draft[0].content = competitive_analysis_detail.indications_for_use_statement
+                    existing_cb.draft[
+                        0
+                    ].content = (
+                        competitive_analysis_detail.indications_for_use_statement
+                    )
                 elif result.draft:
-                    result.draft[0].content = competitive_analysis_detail.indications_for_use_statement
+                    result.draft[
+                        0
+                    ].content = (
+                        competitive_analysis_detail.indications_for_use_statement
+                    )
         else:
             logger.info("Competitive Analysis data not available for  %s", product_id)
 
@@ -270,15 +283,18 @@ async def analyze_claim_builder(product_id: str) -> None:
         if existing_cb:
             # 1) Carry forward OPEN (not-accepted) items from the previous doc
             prev_open_issues = [
-                i for i in (existing_cb.issues or [])
+                i
+                for i in (existing_cb.issues or [])
                 if i.title and not getattr(i, "accepted", False)
             ]
             prev_open_missing = [
-                m for m in (existing_cb.missing_elements or [])
+                m
+                for m in (existing_cb.missing_elements or [])
                 if m.title and not getattr(m, "accepted", False)
             ]
             prev_open_conflicts = [
-                p for p in (existing_cb.phrase_conflicts or [])
+                p
+                for p in (existing_cb.phrase_conflicts or [])
                 if p.statement and not getattr(p, "accepted_fix", False)
             ]
 
@@ -288,23 +304,30 @@ async def analyze_claim_builder(product_id: str) -> None:
 
             # 2) Add only genuinely new items (avoid dupes vs previous OPEN ones)
             new_issues = [
-                i for i in (result.issues or [])
+                i
+                for i in (result.issues or [])
                 if i.title and _norm(i.title) not in prev_issue_keys
             ]
             new_missing = [
-                m for m in (result.missing_elements or [])
+                m
+                for m in (result.missing_elements or [])
                 if m.title and _norm(m.title) not in prev_missing_keys
             ]
             new_conflicts = [
-                p for p in (result.phrase_conflicts or [])
+                p
+                for p in (result.phrase_conflicts or [])
                 if p.statement and _norm(p.statement) not in prev_conflict_keys
             ]
 
             logger.debug(
                 "Merge: prev_open issues/missing/conflicts = %d/%d/%d; "
                 "new adds = %d/%d/%d",
-                len(prev_open_issues), len(prev_open_missing), len(prev_open_conflicts),
-                len(new_issues), len(new_missing), len(new_conflicts),
+                len(prev_open_issues),
+                len(prev_open_missing),
+                len(prev_open_conflicts),
+                len(new_issues),
+                len(new_missing),
+                len(new_conflicts),
             )
 
             # 3) IMPORTANT: never replace with result.*; carry forward + append new
@@ -313,11 +336,19 @@ async def analyze_claim_builder(product_id: str) -> None:
             existing_cb.phrase_conflicts = prev_open_conflicts + new_conflicts
 
             existing_cb.is_user_input = False
+            for i, missing_element in enumerate(existing_cb.missing_elements):
+                missing_element.id = i + 1
+            for i, conflict in enumerate(existing_cb.phrase_conflicts):
+                conflict.id = i
             await existing_cb.save()
         else:
             # First run: insert the fresh result as-is
             result.product_id = product_id
             result.is_user_input = False
+            for i, missing_element in enumerate(existing_cb.missing_elements):
+                missing_element.id = i + 1
+            for i, conflict in enumerate(existing_cb.phrase_conflicts):
+                conflict.id = i
             await result.save()
 
         await progress.complete()

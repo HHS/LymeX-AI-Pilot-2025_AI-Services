@@ -11,7 +11,7 @@ from src.modules.test_comparison.schema import (
 async def analyze_test_comparison(product_id: str) -> None:
     lock = redis_client.lock(
         f"NOIS2:Background:AnalyzeTestComparison:AnalyzeLock:{product_id}",
-        timeout=100,
+        timeout=5,
     )
     lock_acquired = await lock.acquire(blocking=False)
     if not lock_acquired:

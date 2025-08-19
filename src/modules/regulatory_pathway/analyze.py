@@ -10,7 +10,7 @@ from src.modules.regulatory_pathway.do_analyze_regulatory_pathway import (
 async def analyze_regulatory_pathway(product_id: str) -> None:
     lock = redis_client.lock(
         f"NOIS2:Background:AnalyzeRegulatoryPathway:AnalyzeLock:{product_id}",
-        timeout=60,
+        timeout=5,
     )
     if not await lock.acquire(blocking=False):
         logger.warning(f"Analysis already running for {product_id}")

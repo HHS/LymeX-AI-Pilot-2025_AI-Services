@@ -7,7 +7,7 @@ from src.modules.clinical_trial.schema import ClinicalTrialStatus
 async def analyze_clinical_trial(product_id) -> list[ClinicalTrial]:
     lock = redis_client.lock(
         f"NOIS2:Background:AnalyzeClinicalTrial:AnalyzeLock:{product_id}",
-        timeout=100,
+        timeout=5,
     )
     lock_acquired = await lock.acquire(blocking=False)
     if not lock_acquired:

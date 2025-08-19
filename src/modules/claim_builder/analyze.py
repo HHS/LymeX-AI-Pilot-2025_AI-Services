@@ -80,7 +80,7 @@ async def analyze_claim_builder(product_id: str) -> None:
     """
 
     lock_key = f"NOIS2:Background:AnalyzeClaimBuilder:AnalyzeLock:{product_id}"
-    lock = redis_client.lock(lock_key, timeout=150)
+    lock = redis_client.lock(lock_key, timeout=5)
 
     # --------------------------------- progress doc --------------------------------- #
     progress = AnalyzeProgress()

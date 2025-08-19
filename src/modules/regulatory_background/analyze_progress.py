@@ -43,3 +43,6 @@ class AnalyzeProgress:
         self.progress.updated_at = datetime.now(timezone.utc)
         await self.progress.save()
         logger.error(f"Progress marked as errored for {self.progress.product_id}")
+
+    async def pending(self):
+        await self.progress.delete()

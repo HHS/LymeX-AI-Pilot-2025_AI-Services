@@ -20,8 +20,11 @@ async def analyze_regulatory_background(product_id: str) -> None:
         progress = AnalyzeProgress()
         await progress.initialize(product_id, total_files=1)
         try:
-            await do_analyze_regulatory_background(product_id)
-            await progress.complete()
+            have_document = await do_analyze_regulatory_background(product_id)
+            if have_document:
+                await progress.complete()
+            else:
+                await progress.pending()
         except Exception as exc:
             logger.exception(f"Error analyzing {product_id}: {exc}")
             await progress.err()

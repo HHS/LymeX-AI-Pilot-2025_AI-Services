@@ -336,19 +336,23 @@ async def analyze_claim_builder(product_id: str) -> None:
             existing_cb.phrase_conflicts = prev_open_conflicts + new_conflicts
 
             existing_cb.is_user_input = False
-            for i, missing_element in enumerate(existing_cb.missing_elements):
-                missing_element.id = i + 1
-            for i, conflict in enumerate(existing_cb.phrase_conflicts):
-                conflict.id = i
+            if existing_cb and existing_cb.missing_elements:
+                for i, missing_element in enumerate(existing_cb.missing_elements):
+                    missing_element.id = i + 1
+            if existing_cb and existing_cb.phrase_conflicts:
+                for i, conflict in enumerate(existing_cb.phrase_conflicts):
+                    conflict.id = i
             await existing_cb.save()
         else:
             # First run: insert the fresh result as-is
             result.product_id = product_id
             result.is_user_input = False
-            for i, missing_element in enumerate(existing_cb.missing_elements):
-                missing_element.id = i + 1
-            for i, conflict in enumerate(existing_cb.phrase_conflicts):
-                conflict.id = i
+            if existing_cb and existing_cb.missing_elements:
+                for i, missing_element in enumerate(existing_cb.missing_elements):
+                    missing_element.id = i + 1
+            if existing_cb and existing_cb.phrase_conflicts:
+                for i, conflict in enumerate(existing_cb.phrase_conflicts):
+                    conflict.id = i
             await result.save()
 
         await progress.complete()

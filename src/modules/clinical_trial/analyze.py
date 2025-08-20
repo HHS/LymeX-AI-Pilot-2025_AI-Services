@@ -1,7 +1,6 @@
 from loguru import logger
 from src.infrastructure.redis import redis_client
 from src.modules.clinical_trial.model import ClinicalTrial
-from src.modules.clinical_trial.schema import ClinicalTrialStatus
 from src.modules.clinical_trial.service import refresh_trials
 
 async def analyze_clinical_trial(product_id: str, condition: str, sponsors: list[str]) -> list[ClinicalTrial]:

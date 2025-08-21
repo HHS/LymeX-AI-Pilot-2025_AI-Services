@@ -1,4 +1,5 @@
 from pathlib import Path
+from beanie import PydanticObjectId
 from loguru import logger
 from src.environment import environment
 from src.infrastructure.qdrant import embed_text
@@ -57,7 +58,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
         CompetitiveAnalysis.product_id == product_id
     ).to_list()
     exist_competitive_analysis_ids = [
-        analysis.competitive_analysis_detail_id
+        PydanticObjectId(analysis.competitive_analysis_detail_id)
         for analysis in exist_competitive_analysis
     ]
     if exist_competitive_analysis_ids:

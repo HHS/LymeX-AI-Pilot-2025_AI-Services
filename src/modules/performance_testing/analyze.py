@@ -438,7 +438,7 @@ async def analyze_performance_testing(
     attachment_ids: Optional[List[str]] = None,
     card_ids: Optional[Sequence[str]] = None, # run selected cards only
 ) -> int:
-    lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
+    lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=5)
     if not await lock.acquire(blocking=False):
         logger.warning("Analysis already running for {}", product_id)
         return

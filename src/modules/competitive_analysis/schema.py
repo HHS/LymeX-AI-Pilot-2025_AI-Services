@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 
-
 class CompetitiveAnalysisDocumentResponse(BaseModel):
     document_name: str = Field(
         ..., description="Name of the competitive analysis document"
@@ -206,3 +205,18 @@ class CompetitiveAnalysisDetailSchema(BaseModel, CompetitiveAnalysisDetailBase):
 class CompetitiveAnalysisSource(BaseModel):
     name: str = Field(..., description="Name of the source")
     key: str = Field(..., description="S3 key for the source document")
+
+
+class CompetitiveAnalysisDetailResponse(BaseModel):
+    id: str = Field(
+        ..., description="Unique identifier for the competitive analysis detail"
+    )
+    product_id: str = Field(
+        ..., description="ID of the product this analysis is related to"
+    )
+    is_self_analysis: bool = Field(
+        ..., description="Indicates if this analysis is a self-analysis"
+    )
+    details: CompetitiveAnalysisDetailSchema = Field(
+        ..., description="Detailed information about the competitive analysis"
+    )

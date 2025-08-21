@@ -5,6 +5,8 @@ from src.infrastructure.database import init_db
 from src.modules.claim_builder.analyze import analyze_claim_builder
 from src.modules.clinical_trial.analyze import analyze_clinical_trial
 from src.modules.competitive_analysis.analyze import analyze_competitive_analysis
+from src.modules.competitive_analysis.schema import CompetitiveAnalysisDetailResponse
+from src.modules.competitive_analysis.service import get_competitive_analysis
 from src.modules.index_system_data.analyze import (
     index_system_data,
 )
@@ -104,3 +106,10 @@ async def analyze_checklist_handler(
 @app.post("/index-system-data")
 async def index_system_data_handler() -> None:
     await index_system_data()
+
+
+@app.get("/competitive-analysis/{product_id}")
+async def competitive_analysis_handler(
+    product_id: str,
+) -> list[CompetitiveAnalysisDetailResponse]:
+    return await get_competitive_analysis(product_id)

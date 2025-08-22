@@ -93,7 +93,7 @@ async def analyze_claim_builder(product_id: str) -> None:
     try:
         # --------------------------------- gather data ---------------------------------- #
         sleep_time = 5
-        max_retries = 20  # 100 seconds max
+        max_retries = 100  # 500 seconds max
         for _ in range(max_retries):
             profile = await ProductProfile.find_one(
                 ProductProfile.product_id == product_id
@@ -244,7 +244,7 @@ async def analyze_claim_builder(product_id: str) -> None:
         # Optionally sync draft content from CompetitiveAnalysis (unchanged from your code)
         competitive_analysis = None
         sleep_time = 5
-        max_retries = 20
+        max_retries = 100
         for _ in range(max_retries):
             competitive_analysis = await CompetitiveAnalysis.find_one(
                 CompetitiveAnalysis.product_id == product_id,

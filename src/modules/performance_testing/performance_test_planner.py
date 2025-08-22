@@ -188,7 +188,7 @@ async def create_plan(
 
     # ── Fetch profile for rule-engine (if you keep rules) ──
     sleep_time = 5
-    max_retries = 20  # 100 seconds max
+    max_retries = 100  # 500 seconds max
     for _ in range(max_retries):
         profile = await ProductProfile.find_one({"product_id": product_id})
         if profile:

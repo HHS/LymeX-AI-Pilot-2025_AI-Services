@@ -54,12 +54,19 @@ async def create_competitive_analysis(
     logger.info(
         f"Creating CompetitiveAnalysisDetail for product_simple_name={product_simple_name}, document_hash={document_hash}"
     )
-    result = await extract_files_data(
-        file_paths=document_paths,
-        system_instruction=system_instruction,
-        user_question=user_question,
-        model_class=CompetitiveAnalysisDetailSchema,
-    )
+    for attempt in range(3):
+        try:
+            result = await extract_files_data(
+                file_paths=document_paths,
+                system_instruction=system_instruction,
+                user_question=user_question,
+                model_class=CompetitiveAnalysisDetailSchema,
+            )
+            break
+        except Exception as e:
+            logger.warning(f"Attempt {attempt + 1} failed with error: {e}")
+            if attempt == 2:
+                raise
     competitive_analysis_detail = CompetitiveAnalysisDetail(
         document_hash=document_hash,
         document_names=[path.name for path in document_paths],

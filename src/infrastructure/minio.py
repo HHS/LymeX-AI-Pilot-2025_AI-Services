@@ -17,19 +17,6 @@ minio_client = Minio(
 )
 
 
-async def generate_put_object_presigned_url(
-    object_name: str,
-    expiration_seconds=300,
-) -> str:
-    put_object_presigned_url = await asyncio.to_thread(
-        minio_client.presigned_put_object,
-        bucket_name=environment.minio_bucket,
-        object_name=object_name,
-        expires=timedelta(seconds=expiration_seconds),
-    )
-    return put_object_presigned_url
-
-
 async def generate_get_object_presigned_url(
     object_name: str,
     expiration_seconds=300,
@@ -53,14 +40,6 @@ async def list_objects(prefix: str, recursive=False) -> list[Object]:
         recursive=recursive,
     )
     return list(objects)
-
-
-async def remove_object(object_name: str) -> None:
-    await asyncio.to_thread(
-        minio_client.remove_object,
-        bucket_name=environment.minio_bucket,
-        object_name=object_name,
-    )
 
 
 async def get_object(object_name: str) -> bytes:

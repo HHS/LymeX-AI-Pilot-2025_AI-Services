@@ -5,9 +5,7 @@ import mimetypes
 from loguru import logger
 from src.infrastructure.minio import (
     generate_get_object_presigned_url,
-    generate_put_object_presigned_url,
     list_objects,
-    remove_object,
 )
 from src.modules.performance_testing.schema import PerformanceTestingDocumentResponse
 from src.modules.product.storage import get_product_folder
@@ -68,28 +66,6 @@ async def get_performance_testing_documents(
     ]
     documents = await asyncio.gather(*documents)
     return documents
-
-
-async def get_upload_performance_testing_document_url(
-    product_id: str,
-    testing_document_info: TestingDocumentInfo,
-) -> str:
-    extension = testing_document_info["file_name"].split(".")[-1]
-    document_name = encode_testing_document_info(testing_document_info)
-    document_name = f"{document_name}.{extension}"
-    folder = get_performance_testing_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    url = await generate_put_object_presigned_url(object_name)
-    return url
-
-
-async def delete_performance_testing_document(
-    product_id: str,
-    document_name: str,
-) -> None:
-    folder = get_performance_testing_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    await remove_object(object_name)
 
 
 # ================ FOLDERS ====================

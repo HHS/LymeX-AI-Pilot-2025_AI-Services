@@ -21,7 +21,6 @@ from src.utils.download_minio_files import download_minio_file
 class AnalysisDocumentInfo(TypedDict):
     file_name: str
     author: str
-    competitor_name: str
 
 
 async def analyze_competitive_analysis_document(
@@ -38,7 +37,6 @@ async def analyze_competitive_analysis_document(
         document_name=document_name,
         file_name=file_name,
         url=url,
-        competitor_name=analysis_document_info["competitor_name"],
         uploaded_at=obj.last_modified.isoformat(),
         author=analysis_document_info["author"],
         content_type=obj.content_type
@@ -86,7 +84,6 @@ ANALYSIS_DOCUMENT_INFO_SCHEMA = {
     "fields": [
         {"name": "file_name", "type": "string"},
         {"name": "author", "type": "string"},
-        {"name": "competitor_name", "type": "string"},
     ],
 }
 

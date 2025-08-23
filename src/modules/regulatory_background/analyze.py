@@ -10,7 +10,7 @@ from src.modules.regulatory_background.do_analyze_regulatory_background import (
 async def analyze_regulatory_background(product_id: str) -> None:
     lock = redis_client.lock(
         f"NOIS2:Background:AnalyzeRegulatoryBackground:AnalyzeLock:{product_id}",
-        timeout=5,
+        timeout=15,
     )
     if not await lock.acquire(blocking=False):
         logger.warning(f"Analysis already running for {product_id}")

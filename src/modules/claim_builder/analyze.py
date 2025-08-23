@@ -65,6 +65,11 @@ Strictly output valid JSON.
 """.strip()
 
 
+
+def _norm(s: str) -> str:
+    return s.strip().lower()
+
+
 # --------------------------------------------------------------------- #
 # main orchestration
 # --------------------------------------------------------------------- #
@@ -80,15 +85,16 @@ async def analyze_claim_builder(product_id: str) -> None:
     """
 
     lock_key = f"NOIS2:Background:AnalyzeClaimBuilder:AnalyzeLock:{product_id}"
-    lock = redis_client.lock(lock_key, timeout=5)
+    lock = redis_client.lock(lock_key, timeout=15)
 
     # --------------------------------- progress doc --------------------------------- #
-    progress = AnalyzeProgress()
-    await progress.init(product_id=product_id, total_files=1)
 
     if not await lock.acquire(blocking=False):
         logger.info("[%s] another job in progress – skipping", product_id)
         return
+
+    progress = AnalyzeProgress()
+    await progress.init(product_id=product_id, total_files=1)
 
     try:
         # --------------------------------- gather data ---------------------------------- #
@@ -276,9 +282,6 @@ async def analyze_claim_builder(product_id: str) -> None:
                     )
         else:
             logger.info("Competitive Analysis data not available for  %s", product_id)
-
-        def _norm(s: str) -> str:
-            return s.strip().lower()
 
         if existing_cb:
             # 1) Carry forward OPEN (not-accepted) items from the previous doc

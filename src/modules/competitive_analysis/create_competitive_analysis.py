@@ -45,7 +45,7 @@ async def create_competitive_analysis(
     existing_detail = await CompetitiveAnalysisDetail.find_one(
         CompetitiveAnalysisDetail.document_hash == document_hash
     )
-    if existing_detail:
+    if existing_detail and existing_detail.product_simple_name == product_simple_name:
         logger.info(
             f"CompetitiveAnalysisDetail already exists for document_hash={document_hash}, returning existing detail."
         )

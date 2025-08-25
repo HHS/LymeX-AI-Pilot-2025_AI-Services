@@ -17,6 +17,7 @@ from src.modules.competitive_analysis.model import (
 from src.modules.performance_testing.model import (
     AnalyzePerformanceTestingProgress,
     PerformanceTesting,
+    PredicateLLMAnalysis,
 )
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.product.model import Product
@@ -54,6 +55,7 @@ async def init_db() -> None:
             ClaimBuilder,
             AnalyzeClaimBuilderProgress,
             PerformanceTesting,
+            PredicateLLMAnalysis,
             TestComparison,
             ClinicalTrial,
             RegulatoryPathway,

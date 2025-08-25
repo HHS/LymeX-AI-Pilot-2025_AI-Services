@@ -23,10 +23,6 @@ from src.modules.performance_testing.storage import (
     get_performance_testing_documents,  # ← new
 )
 
-from src.modules.performance_testing.predicate_gap_comparison import (
-    llm_gaps_and_suggestions_all_and_save,
-)
-
 from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
 from src.utils.parse_openai_json import parse_openai_json
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
@@ -536,20 +532,6 @@ async def analyze_performance_testing(
             PerformanceTesting.product_id == product_id
         ).delete_many()
         await _run_all_sections(client, aid, mapping, product_id, attachment_ids)
-
-        # Guard with env so it’s opt-in and won’t surprise anyone with API usage.
-        try:
-            model = "gpt-4o"
-            results = await llm_gaps_and_suggestions_all_and_save(
-                product_id=product_id,
-                model=model,
-                overwrite=True,   # upsert results for each competitor
-            )
-            logger.info("Predicate LLM saved results for {} competitor(s).", len(results))
-        except Exception as e:
-            # Never fail the main PT analysis if LLM step hiccups
-            logger.warning("Predicate LLM step skipped due to error: {}", e)
-
 
         await progress.done()  # mark 100 %
     except Exception as exc:

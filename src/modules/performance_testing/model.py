@@ -18,6 +18,8 @@ from src.modules.performance_testing.schema import (
     SoftwarePerformance,
     SterilityValidation,
     WirelessCoexistence,
+    LLMPredicateRow, 
+    LLMGapFinding,
 )
 
 
@@ -71,3 +73,20 @@ class AnalyzePerformanceTestingProgress(Document):
         json_encoders = {
             PydanticObjectId: str,
         }
+
+class PredicateLLMAnalysis(Document):
+    product_id: str
+    competitor_id: str | None = None
+    competitor_name: str | None = None
+    rows: list[LLMPredicateRow] = Field(default_factory=list)
+    gaps: list[LLMGapFinding] = Field(default_factory=list)
+    model_used: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime | None = None
+
+    class Settings:
+        name = "predicate_llm_analysis"
+
+    async def save(self, *args, **kwargs):
+        self.updated_at = datetime.now(timezone.utc)
+        return await super().save(*args, **kwargs)

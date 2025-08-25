@@ -42,14 +42,15 @@ async def create_competitive_analysis(
     data_type: str,
 ) -> CompetitiveAnalysisDetail:
     document_hash = hash_document_paths(document_paths)
-    existing_detail = await CompetitiveAnalysisDetail.find_one(
-        CompetitiveAnalysisDetail.document_hash == document_hash
-    )
-    if existing_detail:
-        logger.info(
-            f"CompetitiveAnalysisDetail already exists for document_hash={document_hash}, returning existing detail."
+    if product_simple_name != "Your Product":
+        existing_detail = await CompetitiveAnalysisDetail.find_one(
+            CompetitiveAnalysisDetail.document_hash == document_hash
         )
-        return existing_detail
+        if existing_detail:
+            logger.info(
+                f"CompetitiveAnalysisDetail already exists for document_hash={document_hash}, returning existing detail."
+            )
+            return existing_detail
 
     logger.info(
         f"Creating CompetitiveAnalysisDetail for product_simple_name={product_simple_name}, document_hash={document_hash}"

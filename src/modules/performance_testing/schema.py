@@ -481,6 +481,31 @@ class PerformanceTesting(BaseModel):
     created_at: date = Field(default_factory=date.today)
     updated_at: Optional[date] = None
 
+# === LLM Predicate Comparison (additive types) ===============================
+
+class LLMPredicateRow(BaseModel):
+    section_key: str                 # e.g. "analytical", "clinical", ...
+    test_code: str | None = None     # e.g. "precision", "clin_sens"
+    label: str                       
+    your_value: str | None = None
+    predicate_value: str | None = None
+
+class LLMGapFinding(BaseModel):
+    title: str
+    subtitle: str
+    suggested_fix: str
+    severity: Literal["info", "minor", "major", "critical"]
+    section_key: str
+    test_code: str | None = None
+
+class LLMPredicateComparisonResult(BaseModel):
+    product_id: str
+    competitor_id: str | None = None
+    competitor_name: str | None = None
+    rows: list[LLMPredicateRow] = Field(default_factory=list)
+    gaps: list[LLMGapFinding] = Field(default_factory=list)
+    model_used: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 # Allow forward‑references (AnimalTesting etc.)
 PerformanceTesting.update_forward_refs()
@@ -509,4 +534,7 @@ __all__ = [
     "PerformanceTestingReference",
     "PerformanceTestingAssociatedStandard",
     "PerformanceTestCard",
+    "LLMPredicateRow",
+    "LLMGapFinding",
+    "LLMPredicateComparisonResult",
 ]

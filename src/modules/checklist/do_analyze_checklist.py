@@ -18,7 +18,8 @@ system_instruction = (
 )
 user_question = (
     "Please extract a complete information using all uploaded FDA PDF "
-    "If an answer is not found, return the field value as None.\n\n"
+    "If an answer is not found, return the field value 'Not Available', do not make up an answer.\n\n"
+
     f"{questions}"
 )
 

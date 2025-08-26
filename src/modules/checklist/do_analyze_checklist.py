@@ -18,8 +18,9 @@ system_instruction = (
 )
 user_question = (
     "Please extract a complete information using all uploaded FDA PDF "
-    "If an answer is not found, return the field value 'Not Available', do not make up an answer.\n\n"
-
+    "If an answer is not found, return the field value 'Not Available', do not make up an answer. "
+    "Use word 'Inapplicable' if the question does not apply to the product, "
+    "for example question about 'Wireless Connection', but the product is a 'scissors' or an 'ear plug'.\n\n"
     f"{questions}"
 )
 

@@ -253,6 +253,18 @@ async def create_plan(
                     ],
                 },
             },
+            "rejected_tests": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "section_key": {"type": "string"},
+                        "test_code": {"type": "string"},
+                        "reason": {"type": "string"}
+                    },
+                    "required": ["section_key", "test_code", "reason"]
+                }
+            },
             "rationale": {"type": "string"},
         },
         "required": ["tests"],
@@ -262,15 +274,16 @@ async def create_plan(
 
     assistant = client.beta.assistants.create(
         name="Performance Test Planner",
-        model=environment.openai_model,
+        model= environment.openai_model,
         instructions=(
             "You are an FDA regulatory strategist. Always respond by calling the "
-            "function **return_test_plan** with a single argument named `tests` - "
-            "an *array* of objects. **Each object MUST include**\n"
-            "・`section_key`  ・`test_code`  ・`ai_rationale`\n"
-            "・**`references` (≥1 item)**  ・**`associated_standards` (≥1 item)**\n"
-            "Return at least one authoritative source or standard for every test.\n\n"
-            "Allowed combinations are:\n"
+            "function **return_test_plan**.Return tests (accepted) and rejected_tests (not suggested).\n"
+            "Iterate every section and every test in the catalogue shown below.\n"
+            "Put each test in exactly one of the two arrays.\n"
+            "Remember, if any test under a given section is not suggested as a test (accepted), then it should be a part of the rejected_tests"
+            "For rejected_tests, provide a short reason tied to the Product Profile evidence.\n"
+            "If evidence is missing, say ‘insufficient evidence in profile’.\n"
+            "Please consider all the sections and the tests within them from the test catalogue below: \n"
             + json.dumps(TEST_CATALOGUE, indent=2)  # keeps catalogue in‑sync
         ),
         tools=[
@@ -344,6 +357,35 @@ async def create_plan(
         merged[section] = sorted(
             set(rule_tests.get(section, [])) | set(llm_tests.get(section, []))
         )
+    
+    # Parse LLM rejections (may be missing if older assistants)
+    llm_rejected = llm_out.get("rejected_tests", []) or []
+    rej_set = {(r["section_key"], r["test_code"]) for r in llm_rejected}
+
+    # Build a set of (section, code) that ended up accepted
+    merged_set = {(sec, code) for sec, codes in merged.items() for code in codes}
+
+    # Keep only rejections that are NOT in the final plan
+    effective_rejected = [
+        r for r in llm_rejected
+        if (r["section_key"], r["test_code"]) not in merged_set
+    ]
+
+    rejected_tests_cards: list[PerformanceTestCard] = []
+    for r in effective_rejected:
+        sec, code, reason = r["section_key"], r["test_code"], r["reason"]
+        rejected_tests_cards.append(
+            PerformanceTestCard(
+                section_key=sec,
+                test_code=code,
+                product_id=product_id,
+                test_description=TEST_CATALOGUE[sec][code],
+                status=TestStatus.REJECTED,
+                rejected_justification=reason,
+            )
+        )
+
+
 
     # ── Convert to list[PerformanceTestCard] ─────────────────
     cards: list[PerformanceTestCard] = []
@@ -409,6 +451,7 @@ async def create_plan(
     await PerformanceTestPlan(
         product_id=product_id,
         tests=cards,
+        rejected_tests=rejected_tests_cards,
         rationale=rationale,
         updated_at=datetime.utcnow(),
     ).insert()

@@ -20,34 +20,47 @@ from src.modules.competitive_analysis.model import (
 
 async def do_analyze_claim_builder(product_id: str) -> None:
     # --------------------------------- gather data ---------------------------------- #
+    # --- Prefer Competitive Analysis IFU; wait for it like we do for ProductProfile ---
     sleep_time = 5
     max_retries = 100  # 500 seconds max
+    competitive_analysis = None
     for _ in range(max_retries):
-        profile = await ProductProfile.find_one(ProductProfile.product_id == product_id)
-        if profile:
+        competitive_analysis = await CompetitiveAnalysis.find_one(
+            CompetitiveAnalysis.product_id == product_id,
+            CompetitiveAnalysis.is_self_analysis == True,
+        )
+        if competitive_analysis:
             break
-        logger.warning("⏳  Waiting for Product-Profile to be available...")
+        logger.warning("⏳  Waiting for Competitive-Analysis to be available...")
         await asyncio.sleep(sleep_time)
     else:
-        raise HTTPException(404, "Product-Profile not found for this product")
-    if profile is None:
-        raise HTTPException(404, f"No ProductProfile found for '{product_id}'")
+        raise HTTPException(404, "Competitive-Analysis not found for this product")
 
-    # ifu_text: str | None = getattr(profile, "instructions_for_use", None)
-    ifu_raw = getattr(profile, "instructions_for_use", None)
-    if not ifu_raw:
+    competitive_analysis_detail = await CompetitiveAnalysisDetail.get(
+        competitive_analysis.competitive_analysis_detail_id
+    )
+    ca_ifu_text = getattr(competitive_analysis_detail, "indications_for_use_statement", None)
+
+    # Normalize IFU for prompt (CA preferred). If CA text is missing, fall back to ProductProfile.
+    def _normalize_ifu(ifu_raw):
+        if isinstance(ifu_raw, list):
+            return "\n".join(str(x) for x in ifu_raw if x is not None)
+        return str(ifu_raw) if ifu_raw is not None else ""
+
+    ifu_text_for_prompt = _normalize_ifu(ca_ifu_text).strip()
+
+    if not ifu_text_for_prompt:
         raise HTTPException(
             422,
-            "ProductProfile.instructions_for_use is empty - cannot analyse IFU",
+            "Competitive Analysis IFU does not contains text - cannot analyse IFU",
         )
 
-    # Normalize to a string for the prompt even if the schema stores IFU as list[str]
-    if isinstance(ifu_raw, list):
-        ifu_text_for_prompt = "\n".join(str(x) for x in ifu_raw if x is not None)
-    else:
-        ifu_text_for_prompt = str(ifu_raw)
+    logger.info("🧪 Using IFU from Competitive-Analysis for {} ({} chars): {!r}",
+            product_id, len(ifu_text_for_prompt), ifu_text_for_prompt[:120])
 
+    # Keep attaching Product Profile PDFs as supporting context (unchanged)
     docs = await get_product_profile_documents(product_id)
+
 
     # Prefer local cached path if storage layer provides it; otherwise download
     file_paths: list[Path] = []
@@ -89,7 +102,7 @@ async def do_analyze_claim_builder(product_id: str) -> None:
     )
     """
     user_msg = (
-        f"You are reviewing the following Instructions-for-Use (IFU) for "
+        f"You are reviewing the following Indications-for-Use (IFU) for "
         f"product **{product_id}**:\n\n"
         "```text\n"
         f"{ifu_text_for_prompt}\n"
@@ -163,37 +176,15 @@ async def do_analyze_claim_builder(product_id: str) -> None:
     # Load current doc (if any)
     existing_cb = await ClaimBuilder.find_one(ClaimBuilder.product_id == product_id)
 
-    # Optionally sync draft content from CompetitiveAnalysis (unchanged from your code)
-    competitive_analysis = None
-    sleep_time = 5
-    max_retries = 100
-    for _ in range(max_retries):
-        competitive_analysis = await CompetitiveAnalysis.find_one(
-            CompetitiveAnalysis.product_id == product_id,
-            CompetitiveAnalysis.is_self_analysis == True,
-        )
-        if competitive_analysis:
-            break
-        logger.warning("⏳  Waiting for Competitive-Analysis to be available...")
-        await asyncio.sleep(sleep_time)
-    else:
-        logger.error("Competitive-Analysis not available after retries")
-
-    if competitive_analysis:
-        competitive_analysis_detail = await CompetitiveAnalysisDetail.get(
-            competitive_analysis.competitive_analysis_detail_id
-        )
+    # We already fetched competitive_analysis_detail above; reuse it here to update draft content
+    if 'competitive_analysis_detail' in locals() and competitive_analysis_detail:
         if existing_cb and (existing_cb.draft or result.draft):
             if existing_cb.draft:
-                existing_cb.draft[
-                    0
-                ].content = competitive_analysis_detail.indications_for_use_statement
+                existing_cb.draft[0].content = competitive_analysis_detail.indications_for_use_statement
             elif result.draft:
-                result.draft[
-                    0
-                ].content = competitive_analysis_detail.indications_for_use_statement
+                result.draft[0].content = competitive_analysis_detail.indications_for_use_statement
     else:
-        logger.info("Competitive Analysis data not available for  %s", product_id)
+        logger.info("Competitive Analysis data not available for  {}", product_id)
 
     if existing_cb:
         # 1) Carry forward OPEN (not-accepted) items from the previous doc

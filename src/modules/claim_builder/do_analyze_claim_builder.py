@@ -177,12 +177,16 @@ async def do_analyze_claim_builder(product_id: str) -> None:
     existing_cb = await ClaimBuilder.find_one(ClaimBuilder.product_id == product_id)
 
     # We already fetched competitive_analysis_detail above; reuse it here to update draft content
-    if 'competitive_analysis_detail' in locals() and competitive_analysis_detail:
-        if existing_cb and (existing_cb.draft or result.draft):
-            if existing_cb.draft:
-                existing_cb.draft[0].content = competitive_analysis_detail.indications_for_use_statement
-            elif result.draft:
-                result.draft[0].content = competitive_analysis_detail.indications_for_use_statement
+    if competitive_analysis_detail:
+        ca_ifu = competitive_analysis_detail.indications_for_use_statement
+        # Always set the outgoing result draft (first run or re-run)
+        if getattr(result, "draft", None):
+            #print(result.draft[0].content)
+            result.draft[0].content = ca_ifu
+        # Also update an existing doc’s draft during merge (re-run case)
+        if existing_cb and getattr(existing_cb, "draft", None):
+            existing_cb.draft[0].content = ca_ifu
+
     else:
         logger.info("Competitive Analysis data not available for  {}", product_id)
 

@@ -1,20 +1,28 @@
 from __future__ import annotations
-import json, os, re
-from typing import Optional, Any, List
+import json
+import os
+import re
+from typing import Any, List
 from loguru import logger
 
 from src.infrastructure.openai import get_openai_client_sync
 from src.utils.parse_openai_json import parse_openai_json
 
 from src.modules.performance_testing.const import TEST_CATALOGUE
-from src.modules.performance_testing.model import PerformanceTesting, PredicateLLMAnalysis
+from src.modules.performance_testing.model import (
+    PerformanceTesting,
+    PredicateLLMAnalysis,
+)
 from src.modules.performance_testing.schema import (
-    LLMPredicateRow, LLMGapFinding, LLMPredicateComparisonResult
+    LLMPredicateRow,
+    LLMGapFinding,
+    LLMPredicateComparisonResult,
 )
 from src.modules.competitive_analysis.service import get_competitive_analysis
 
 
 # -------------------- helpers --------------------
+
 
 def _robust_json(txt: str) -> dict:
     try:
@@ -29,23 +37,35 @@ def _robust_json(txt: str) -> dict:
                 pass
         return parse_openai_json(txt)
 
+
 def _pick_all_competitors(ca_list):
     """Return all non-self-analysis entries; fall back to all if none flagged."""
     non_self = [ca for ca in ca_list if not getattr(ca, "is_self_analysis", False)]
     return non_self or ca_list
 
+
 def _summarize_pt(pt: PerformanceTesting) -> dict:
     """Keep only the fields relevant for comparison to reduce prompt size."""
     d = pt.model_dump(mode="json")
     keep = {
-        "analytical","clinical","emc_safety","software","interoperability",
-        "cybersecurity","sterility","shelf_life","biocompatibility",
-        "wireless","comparison","overall_risk_level"
+        "analytical",
+        "clinical",
+        "emc_safety",
+        "software",
+        "interoperability",
+        "cybersecurity",
+        "sterility",
+        "shelf_life",
+        "biocompatibility",
+        "wireless",
+        "comparison",
+        "overall_risk_level",
     }
     return {k: v for k, v in d.items() if k in keep}
 
 
 # -------------------- single-competitor run --------------------
+
 
 async def llm_gaps_and_suggestions_one(
     product_id: str,
@@ -56,16 +76,28 @@ async def llm_gaps_and_suggestions_one(
     Ask OpenAI to detect gaps *and* propose suggestions for THIS competitor only.
     Returns a LLMPredicateComparisonResult (in-memory; not saved).
     """
+    logger.info(f"Fetching PerformanceTesting for product_id={product_id}")
     you = await PerformanceTesting.find_one({"product_id": product_id})
     if not you:
+        logger.warning(f"No PerformanceTesting found for product_id={product_id}")
         return LLMPredicateComparisonResult(product_id=product_id)
 
     details = getattr(competitor_detail, "details", None)
     competitor_name = getattr(details, "product_name", None) if details else None
-    competitor_id = str(getattr(competitor_detail, "id", "")) if competitor_detail else None
+    competitor_id = (
+        str(getattr(competitor_detail, "id", "")) if competitor_detail else None
+    )
 
     pt_ctx = _summarize_pt(you)
-    comp_ctx = details.model_dump(mode="json") if details and hasattr(details, "model_dump") else (details or {})
+    comp_ctx = (
+        details.model_dump(mode="json")
+        if details and hasattr(details, "model_dump")
+        else (details or {})
+    )
+
+    logger.debug(
+        f"Preparing LLM instructions and payload for product_id={product_id}, competitor_id={competitor_id}"
+    )
 
     instructions = (
         "You are an FDA regulatory analyst. Compare our device's performance evidence with the selected predicate.\n"
@@ -89,16 +121,27 @@ async def llm_gaps_and_suggestions_one(
     client = get_openai_client_sync()
     model = model or os.getenv("PT_GAPS_LLM_MODEL", "gpt-4.1-mini")
 
+    logger.info(
+        f"Calling OpenAI LLM for product_id={product_id}, competitor_id={competitor_id}, model={model}"
+    )
+
     try:
         resp = client.responses.create(
             model=model,
-            input=[{"role": "system", "content": instructions},
-                   {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+            input=[
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
             response_format={"type": "json_object"},
         )
         data = getattr(resp, "output_text", None)
-    except Exception:
-        # fallback path if Responses API not available
+        logger.debug(
+            f"LLM response received via responses.create for product_id={product_id}, competitor_id={competitor_id}"
+        )
+    except Exception as e:
+        logger.warning(
+            f"LLM responses.create failed: {e}. Falling back to chat.completions.create"
+        )
         fallback = os.getenv("PT_GAPS_LLM_MODEL_FALLBACK", "gpt-4o-mini")
         resp = client.chat.completions.create(
             model=fallback,
@@ -110,10 +153,17 @@ async def llm_gaps_and_suggestions_one(
             temperature=0.2,
         )
         data = resp.choices[0].message.content
+        logger.debug(
+            f"LLM response received via chat.completions.create for product_id={product_id}, competitor_id={competitor_id}"
+        )
 
     parsed = _robust_json(data or "{}")
     rows = parsed.get("rows") or []
     gaps = parsed.get("gaps") or []
+
+    logger.info(
+        f"LLM parsed {len(rows)} rows and {len(gaps)} gaps for product_id={product_id}, competitor_id={competitor_id}"
+    )
 
     # ensure labels exist/are aligned
     for r in rows:
@@ -134,6 +184,7 @@ async def llm_gaps_and_suggestions_one(
 
 # -------------------- run for ALL competitors + save --------------------
 
+
 async def llm_gaps_and_suggestions_all_and_save(
     product_id: str,
     model: str | None = None,
@@ -146,20 +197,28 @@ async def llm_gaps_and_suggestions_all_and_save(
       - save each result to Mongo (collection: predicate_llm_analysis)
     Returns all results in-memory as well.
     """
+    logger.info(f"Fetching competitive analysis for product_id={product_id}")
     ca_list = await get_competitive_analysis(product_id)
     if not ca_list:
         logger.warning("No Competitive Analysis records for product_id={}", product_id)
         return []
 
     picked = _pick_all_competitors(ca_list)
+    logger.info(f"Picked {len(picked)} competitors for product_id={product_id}")
     results: List[LLMPredicateComparisonResult] = []
 
     for comp in picked:
+        logger.info(
+            f"Running LLM gap analysis for product_id={product_id}, competitor_id={getattr(comp, 'id', None)}"
+        )
         res = await llm_gaps_and_suggestions_one(product_id, comp, model=model)
         results.append(res)
 
         # upsert save
         if overwrite:
+            logger.info(
+                f"Saving/updating PredicateLLMAnalysis for product_id={product_id}, competitor_id={res.competitor_id}"
+            )
             existing = await PredicateLLMAnalysis.find_one({
                 "product_id": product_id,
                 "competitor_id": res.competitor_id,
@@ -170,6 +229,9 @@ async def llm_gaps_and_suggestions_all_and_save(
                 existing.model_used = res.model_used
                 existing.competitor_name = res.competitor_name
                 await existing.save()
+                logger.debug(
+                    f"Updated existing PredicateLLMAnalysis for product_id={product_id}, competitor_id={res.competitor_id}"
+                )
             else:
                 await PredicateLLMAnalysis(
                     product_id=product_id,
@@ -179,5 +241,11 @@ async def llm_gaps_and_suggestions_all_and_save(
                     gaps=res.gaps,
                     model_used=res.model_used,
                 ).insert()
+                logger.debug(
+                    f"Inserted new PredicateLLMAnalysis for product_id={product_id}, competitor_id={res.competitor_id}"
+                )
 
+    logger.info(
+        f"Completed LLM gap analysis for all competitors for product_id={product_id}"
+    )
     return results

@@ -356,7 +356,7 @@ async def _generic_extract(
                     ]
 
                     # ▸ status
-                    card.status = TestStatus.SUGGESTED   # Suggested by AI
+                    card.status = TestStatus.SUGGESTED  # Suggested by AI
                     break
             await plan.save()
     except Exception as exc:
@@ -440,7 +440,7 @@ def _section_key(tool_name: str) -> str:
 async def analyze_performance_testing(
     product_id: str,
     attachment_ids: Optional[List[str]] = None,
-    card_ids: Optional[Sequence[str]] = None, # run selected cards only
+    card_ids: Optional[Sequence[str]] = None,  # run selected cards only
 ) -> int:
     lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=15)
     if not await lock.acquire(blocking=False):
@@ -460,14 +460,14 @@ async def analyze_performance_testing(
             plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
 
         # ── Decide which section(s) we really need to extract ──────────────
-        print('=============================================')
-        print('=============================================')
+        print("=============================================")
+        print("=============================================")
         print(f"Analyzing performance testing for {product_id} with plan: {plan_doc}")
         if plan_doc and plan_doc.tests:
             if card_ids:
                 # user asked for *specific* card(s)
                 wanted = {str(cid) for cid in card_ids}
-                chosen  = [c for c in plan_doc.tests if str(c.id) in wanted]
+                chosen = [c for c in plan_doc.tests if str(c.id) in wanted]
                 if not chosen:
                     logger.warning("Card‑id(s) %s not found for %s", wanted, product_id)
                     return 0
@@ -476,7 +476,7 @@ async def analyze_performance_testing(
                 # default: run every test card in the plan
                 active_sections = {c.section_key for c in plan_doc.tests}
         else:
-            # no plan means run everything 
+            # no plan means run everything
             active_sections = None
 
         """# build a set of section keys that actually contain cards
@@ -543,13 +543,14 @@ async def analyze_performance_testing(
             results = await llm_gaps_and_suggestions_all_and_save(
                 product_id=product_id,
                 model=model,
-                overwrite=True,   # upsert results for each competitor
+                overwrite=True,  # upsert results for each competitor
             )
-            logger.info("Predicate LLM saved results for {} competitor(s).", len(results))
+            logger.info(
+                "Predicate LLM saved results for {} competitor(s).", len(results)
+            )
         except Exception as e:
             # Never fail the main PT analysis if LLM step hiccups
             logger.warning("Predicate LLM step skipped due to error: {}", e)
-
 
         await progress.done()  # mark 100 %
     except Exception as exc:
@@ -559,6 +560,7 @@ async def analyze_performance_testing(
         await lock.release()
 
     return num_files
+
 
 # --------------------------------------------------------------------------
 # Convenience wrappers – keeping the public API explicit & readable

@@ -65,12 +65,14 @@ class PerformanceTestCard(BaseModel):
     references: list[PerformanceTestingReference] | None = None
     associated_standards: list[PerformanceTestingAssociatedStandard] | None = None
     rejected_justification: str | None = None
+    accepted_justification: str | None = None
 
     # ─── metadata filled by backend ────────────────────────────
     id: PydanticObjectId = Field(default_factory=PydanticObjectId, alias="_id")
     product_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str = "ai@crowdplat.com"
+    ai_decided: bool = False
 
 
 class PerformanceTestingSection(str, enum.Enum):

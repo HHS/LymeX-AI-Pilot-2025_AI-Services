@@ -69,6 +69,7 @@ def _robust_json(txt: str) -> dict:
         # last resort – very tolerant but slower
         return parse_openai_json(txt)
 
+
 # ───────────────── tolerant JSON loader ────────────────────────
 def _robust_json(txt: str) -> dict:
     """
@@ -93,6 +94,7 @@ def _robust_json(txt: str) -> dict:
                 pass
         # last resort – very tolerant but slower
         return parse_openai_json(txt)
+
 
 # ─────────────────────────────────────────────────────────────
 # 1.  Helper: simple rule-engine (cheap heuristics first)
@@ -199,7 +201,7 @@ async def create_plan(
         raise HTTPException(404, "Product-Profile not found for this product")
 
     rule_tests = _rule_engine(profile)
-    
+
     function_parameters = {
         "type": "object",
         "properties": {
@@ -260,10 +262,10 @@ async def create_plan(
                     "properties": {
                         "section_key": {"type": "string"},
                         "test_code": {"type": "string"},
-                        "reason": {"type": "string"}
+                        "reason": {"type": "string"},
                     },
-                    "required": ["section_key", "test_code", "reason"]
-                }
+                    "required": ["section_key", "test_code", "reason"],
+                },
             },
             "rationale": {"type": "string"},
         },
@@ -274,7 +276,7 @@ async def create_plan(
 
     assistant = client.beta.assistants.create(
         name="Performance Test Planner",
-        model= environment.openai_model,
+        model=environment.openai_model,
         instructions=(
             "You are an FDA regulatory strategist. Always respond by calling the "
             "function **return_test_plan**.Return tests (accepted) and rejected_tests (not suggested).\n"
@@ -357,7 +359,7 @@ async def create_plan(
         merged[section] = sorted(
             set(rule_tests.get(section, [])) | set(llm_tests.get(section, []))
         )
-    
+
     # Parse LLM rejections (may be missing if older assistants)
     llm_rejected = llm_out.get("rejected_tests", []) or []
     rej_set = {(r["section_key"], r["test_code"]) for r in llm_rejected}
@@ -367,8 +369,7 @@ async def create_plan(
 
     # Keep only rejections that are NOT in the final plan
     effective_rejected = [
-        r for r in llm_rejected
-        if (r["section_key"], r["test_code"]) not in merged_set
+        r for r in llm_rejected if (r["section_key"], r["test_code"]) not in merged_set
     ]
 
     rejected_tests_cards: list[PerformanceTestCard] = []
@@ -382,10 +383,9 @@ async def create_plan(
                 test_description=TEST_CATALOGUE[sec][code],
                 status=TestStatus.REJECTED,
                 rejected_justification=reason,
+                ai_decided=True,
             )
         )
-
-
 
     # ── Convert to list[PerformanceTestCard] ─────────────────
     cards: list[PerformanceTestCard] = []
@@ -435,6 +435,7 @@ async def create_plan(
                     ai_rationale=info.get("ai_rationale"),
                     references=ref_objs or None,
                     associated_standards=std_objs or None,
+                    ai_decided=False,
                 )
             )
 
@@ -450,7 +451,7 @@ async def create_plan(
 
     await PerformanceTestPlan(
         product_id=product_id,
-        tests=cards,
+        tests=[*cards, *rejected_tests_cards],
         rejected_tests=rejected_tests_cards,
         rationale=rationale,
         updated_at=datetime.utcnow(),

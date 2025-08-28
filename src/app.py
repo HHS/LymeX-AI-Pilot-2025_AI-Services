@@ -66,6 +66,7 @@ async def analyze_performance_testing_handler(
         await run_performance_test_card(product_id, performance_testing_id)
     else:
         await run_all_performance_tests(product_id)
+        await run_all_performance_tests(product_id)
 
 
 @app.post("/analyze-product-profile")

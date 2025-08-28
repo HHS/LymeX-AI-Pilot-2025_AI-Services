@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Dict, List
 from beanie import Document
 from pydantic import Field
 

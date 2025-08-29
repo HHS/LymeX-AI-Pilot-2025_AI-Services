@@ -187,14 +187,17 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
 
     decided_cas = await CompetitiveAnalysis.find(
         CompetitiveAnalysis.product_id == product_id,
-        CompetitiveAnalysis.accepted is not None,
+        CompetitiveAnalysis.accepted != None,
     ).to_list()
     decided_ca_detail_ids = [doc.competitive_analysis_detail_id for doc in decided_cas]
     decided_ca_detail_ids_map = {
         doc.competitive_analysis_detail_id: doc for doc in decided_cas
     }
     decided_cads = await CompetitiveAnalysisDetail.find(
-        CompetitiveAnalysisDetail.id.in_(decided_ca_detail_ids)
+        In(
+            CompetitiveAnalysisDetail.id,
+            decided_ca_detail_ids,
+        )
     ).to_list()
     decided_cads_map = {
         doc.product_name: decided_ca_detail_ids_map[doc.id] for doc in decided_cads

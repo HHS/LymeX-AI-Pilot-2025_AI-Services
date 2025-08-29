@@ -39,7 +39,9 @@ async def do_analyze_claim_builder(product_id: str) -> None:
     competitive_analysis_detail = await CompetitiveAnalysisDetail.get(
         competitive_analysis.competitive_analysis_detail_id
     )
-    ca_ifu_text = getattr(competitive_analysis_detail, "indications_for_use_statement", None)
+    ca_ifu_text = getattr(
+        competitive_analysis_detail, "indications_for_use_statement", None
+    )
 
     # Normalize IFU for prompt (CA preferred). If CA text is missing, fall back to ProductProfile.
     def _normalize_ifu(ifu_raw):
@@ -55,12 +57,15 @@ async def do_analyze_claim_builder(product_id: str) -> None:
             "Competitive Analysis IFU does not contains text - cannot analyse IFU",
         )
 
-    logger.info("🧪 Using IFU from Competitive-Analysis for {} ({} chars): {!r}",
-            product_id, len(ifu_text_for_prompt), ifu_text_for_prompt[:120])
+    logger.info(
+        "🧪 Using IFU from Competitive-Analysis for {} ({} chars): {!r}",
+        product_id,
+        len(ifu_text_for_prompt),
+        ifu_text_for_prompt[:120],
+    )
 
     # Keep attaching Product Profile PDFs as supporting context (unchanged)
     docs = await get_product_profile_documents(product_id)
-
 
     # Prefer local cached path if storage layer provides it; otherwise download
     file_paths: list[Path] = []
@@ -181,11 +186,12 @@ async def do_analyze_claim_builder(product_id: str) -> None:
         ca_ifu = competitive_analysis_detail.indications_for_use_statement
         # Always set the outgoing result draft (first run or re-run)
         if getattr(result, "draft", None):
-            #print(result.draft[0].content)
+            # print(result.draft[0].content)
             result.draft[0].content = ca_ifu
         # Also update an existing doc’s draft during merge (re-run case)
         if existing_cb and getattr(existing_cb, "draft", None):
-            existing_cb.draft[0].content = ca_ifu
+            if not existing_cb.draft[0].user_updated:
+                existing_cb.draft[0].content = ca_ifu
 
     else:
         logger.info("Competitive Analysis data not available for  {}", product_id)

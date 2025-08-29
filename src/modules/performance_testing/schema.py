@@ -499,16 +499,22 @@ class LLMPredicateRow(BaseModel):
 
 
 class LLMGapFinding(BaseModel):
+    id : int
     title: str
     subtitle: str
     suggested_fix: str
     severity: Literal["info", "minor", "major", "critical"]
     section_key: str
     test_code: str | None = None
+    accepted: bool | None = Field(
+        None,
+        description="Indicates if the missing element has been accepted. None if not decided yet.",
+    )
 
 
 class LLMPredicateComparisonResult(BaseModel):
     product_id: str
+    product_name: str
     competitor_id: str | None = None
     competitor_name: str | None = None
     rows: list[LLMPredicateRow] = Field(default_factory=list)

@@ -76,6 +76,7 @@ class AnalyzePerformanceTestingProgress(Document):
 
 class PredicateLLMAnalysis(Document):
     product_id: str
+    product_name: str
     competitor_id: str | None = None
     competitor_name: str | None = None
     rows: list[LLMPredicateRow] = Field(default_factory=list)

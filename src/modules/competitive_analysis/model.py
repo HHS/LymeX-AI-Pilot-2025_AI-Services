@@ -13,6 +13,10 @@ class CompetitiveAnalysis(Document):
     competitive_analysis_detail_id: str
     is_self_analysis: bool
 
+    accepted: bool | None = None
+    accept_reject_reason: str | None = None
+    accept_reject_by: str | None = None
+
     class Settings:
         name = "competitive_analysis"
 

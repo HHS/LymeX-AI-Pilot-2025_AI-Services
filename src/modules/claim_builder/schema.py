@@ -122,3 +122,6 @@ class Draft(BaseModel):
     reject_message: str | None = Field(
         None, description="Message provided by the user if the draft is rejected"
     )
+    user_updated: bool = Field(
+        False, description="Indicates if the draft has been updated by the user"
+    )

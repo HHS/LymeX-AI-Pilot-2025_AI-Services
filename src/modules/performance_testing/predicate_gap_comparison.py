@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, List
+from typing import Optional, Any, List
 from loguru import logger
 
 from src.infrastructure.openai import get_openai_client_sync
@@ -22,6 +22,23 @@ from src.modules.competitive_analysis.service import get_competitive_analysis
 
 
 # -------------------- helpers --------------------
+
+# ---------- product name resolver ----------
+async def _resolve_product_name(product_id: str) -> str:
+   
+    try:
+        # Local import to avoid import-time hard dependency when running tools
+        from src.modules.product_profile.model import ProductProfile
+        prof = await ProductProfile.find_one({"product_id": product_id})
+        if prof:
+            return (
+                getattr(prof, "product_trade_name", None)
+                or "Not available"
+            )
+    except Exception:
+        pass
+    return "Not available"
+
 
 
 def _robust_json(txt: str) -> dict:
@@ -71,6 +88,7 @@ async def llm_gaps_and_suggestions_one(
     product_id: str,
     competitor_detail: Any,
     model: str = None,
+    product_name: Optional[str] = None,
 ) -> LLMPredicateComparisonResult:
     """
     Ask OpenAI to detect gaps *and* propose suggestions for THIS competitor only.
@@ -81,6 +99,10 @@ async def llm_gaps_and_suggestions_one(
     if not you:
         logger.warning(f"No PerformanceTesting found for product_id={product_id}")
         return LLMPredicateComparisonResult(product_id=product_id)
+    
+    # Ensure we have our own product's display name (required by schema)
+    if product_name is None:
+        product_name = await _resolve_product_name(product_id)
 
     details = getattr(competitor_detail, "details", None)
     competitor_name = getattr(details, "product_name", None) if details else None
@@ -171,9 +193,17 @@ async def llm_gaps_and_suggestions_one(
             sec, code = r.get("section_key"), r.get("test_code")
             if sec in TEST_CATALOGUE and code in TEST_CATALOGUE[sec]:
                 r["label"] = TEST_CATALOGUE[sec][code]
+    
+    # ensure gap ids and accepted flag exist per schema/UI needs
+    for idx, g in enumerate(gaps):
+        g.setdefault("id", idx)
+        # Accept explicit null; if missing entirely, set to None for UI to toggle later
+        if "accepted" not in g:
+            g["accepted"] = None
 
     return LLMPredicateComparisonResult(
         product_id=product_id,
+        product_name=product_name,
         competitor_id=competitor_id,
         competitor_name=competitor_name,
         rows=[LLMPredicateRow(**r) for r in rows],
@@ -202,6 +232,9 @@ async def llm_gaps_and_suggestions_all_and_save(
     if not ca_list:
         logger.warning("No Competitive Analysis records for product_id={}", product_id)
         return []
+    
+    # Resolve our product name once and persist it with each saved comparison
+    product_name = await _resolve_product_name(product_id)
 
     picked = _pick_all_competitors(ca_list)
     logger.info(f"Picked {len(picked)} competitors for product_id={product_id}")
@@ -228,6 +261,11 @@ async def llm_gaps_and_suggestions_all_and_save(
                 existing.gaps = res.gaps
                 existing.model_used = res.model_used
                 existing.competitor_name = res.competitor_name
+                # NEW: persist our product name
+                try:
+                    existing.product_name = product_name
+                except Exception:
+                    pass
                 await existing.save()
                 logger.debug(
                     f"Updated existing PredicateLLMAnalysis for product_id={product_id}, competitor_id={res.competitor_id}"
@@ -235,6 +273,7 @@ async def llm_gaps_and_suggestions_all_and_save(
             else:
                 await PredicateLLMAnalysis(
                     product_id=product_id,
+                    product_name=product_name,
                     competitor_id=res.competitor_id,
                     competitor_name=res.competitor_name,
                     rows=res.rows,

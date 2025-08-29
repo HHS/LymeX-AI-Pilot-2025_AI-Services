@@ -72,7 +72,7 @@ class PerformanceTestCard(BaseModel):
     product_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str = "ai@crowdplat.com"
-    ai_decided: bool = False
+    ai_rejected: bool = False
 
 
 class PerformanceTestingSection(str, enum.Enum):
@@ -155,13 +155,13 @@ class ElectronicInterface(BaseModel):
 # Biocompatibility‑specific helper
 class BioMaterial(BaseModel):
     name: str  # e.g. "Medical grade silicone"
-    tissue_contacting_device_name:Optional[str] = None # Q89
-    materials_used: Optional[str] = None # Q90
-    color_additives: Optional[str] = None # Q91
-    intended_contact:Optional[Literal["Direct", "Indirect", "Both"]] = None # Q92
-    fda_biocompatibility_compliant: Optional[bool] = None # Q93
-    repeated_exposure: Optional[bool] = None # Q94
-    tissue_contact_type: Literal[   # Q95
+    tissue_contacting_device_name: Optional[str] = None  # Q89
+    materials_used: Optional[str] = None  # Q90
+    color_additives: Optional[str] = None  # Q91
+    intended_contact: Optional[Literal["Direct", "Indirect", "Both"]] = None  # Q92
+    fda_biocompatibility_compliant: Optional[bool] = None  # Q93
+    repeated_exposure: Optional[bool] = None  # Q94
+    tissue_contact_type: Literal[  # Q95
         "circulating_blood",
         "blood_path",
         "bone",
@@ -171,7 +171,7 @@ class BioMaterial(BaseModel):
         "communicating_mucosa",
         "contacting_skin",
     ]
-    exposure_duration: Literal["≤24h", ">24h ≤30d", ">30d"] # Q96
+    exposure_duration: Literal["≤24h", ">24h ≤30d", ">30d"]  # Q96
 
 
 # Sterility‑specific helper
@@ -229,10 +229,10 @@ class AnalyticalStudy(BaseModel):
 
 
 class ComparisonStudy(BaseModel):
-    study_type: Literal["method", "matrix"] # Q18 and Q19
+    study_type: Literal["method", "matrix"]  # Q18 and Q19
     performed: bool = False
     attachments: List[AttachmentRef] = Field([])
-    comparator_device_k_number: Optional[str] = None # Q32
+    comparator_device_k_number: Optional[str] = None  # Q32
     summary: Optional[str] = None
     confidence: Optional[float] = None
 
@@ -244,10 +244,12 @@ class ClinicalStudy(BaseModel):
     sensitivity: Optional[float] = None  # 0‑1 # Q20
     specificity: Optional[float] = None  # 0‑1 # Q20
     clinical_cut_off: Optional[str] = None
-    pro_included: Optional[bool] = None # Q24
-    ppi_included: Optional[bool] = None # Q24
-    investigation_location: Optional[Literal["US only", "Out of US only","Both US and Out of US"]] = None # Q28
-    attachments: List[AttachmentRef] = Field([]) # Q25 Q26
+    pro_included: Optional[bool] = None  # Q24
+    ppi_included: Optional[bool] = None  # Q24
+    investigation_location: Optional[
+        Literal["US only", "Out of US only", "Both US and Out of US"]
+    ] = None  # Q28
+    attachments: List[AttachmentRef] = Field([])  # Q25 Q26
     summary: Optional[str] = None
     confidence: Optional[float] = None
 
@@ -256,8 +258,8 @@ class ClinicalStudy(BaseModel):
 
 
 class AnimalTesting(BaseModel):
-    glp_compliant: Optional[bool] = None # Q30
-    justification_if_not_glp: Optional[str] = None # Q31
+    glp_compliant: Optional[bool] = None  # Q30
+    justification_if_not_glp: Optional[str] = None  # Q31
     attachments: List[AttachmentRef] = Field([])
     confidence: Optional[float] = None
 
@@ -267,42 +269,46 @@ class AnimalTesting(BaseModel):
 
 class EMCSafety(BaseModel):
     num_dut: Optional[int] = None  # number of devices tested # Q34
-    worst_harm: Optional[Literal["death_serious", "non_serious", "no_harm"]] = None # Q35
+    worst_harm: Optional[Literal["death_serious", "non_serious", "no_harm"]] = (
+        None  # Q35
+    )
     iec_edition: Optional[str] = None  # e.g. "IEC 60601‑1 Ed 3.2" # Q36
     asca: Optional[bool] = None  # FDA ASCA pilot used # Q36
-    final_version_tested: Optional[bool] = None # Q37
+    final_version_tested: Optional[bool] = None  # Q37
     essential_performance: List[str] = Field([])  # EP functions # Q37
-    pass_fail_pages: List[PageRef] = Field([]) # Q39
-    degradations_observed: Optional[str] = None # Q42
-    allowances: Optional[str] = None # Q43
-    deviations: Optional[str] = None # Q344
-    wireless_on_during_emc: bool | None = None   # Q40
+    pass_fail_pages: List[PageRef] = Field([])  # Q39
+    degradations_observed: Optional[str] = None  # Q42
+    allowances: Optional[str] = None  # Q43
+    deviations: Optional[str] = None  # Q344
+    wireless_on_during_emc: bool | None = None  # Q40
     smart_batt_standalone_tested: bool | None = None  # Q41
-    mr_safety_status: str | None = None          # Q71 ("MR Safe" | "MR Conditional" | "MR Unsafe" | "Not Evaluated")
+    mr_safety_status: str | None = (
+        None  # Q71 ("MR Safe" | "MR Conditional" | "MR Unsafe" | "Not Evaluated")
+    )
     attachments: List[AttachmentRef] = Field([])
     confidence: Optional[float] = None
 
 
 # ------------------------------ 6. Wireless coexistence ------------------------------
 class WirelessRiskTier(str, enum.Enum):
-    NEGLIGIBLE = "Negligible"          # Q49a
-    MINOR = "Minor (Tier 3)"           # Q49b
-    MODERATE = "Moderate (Tier 2)"     # Q49c
-    MAJOR = "Major (Tier 1)"           # Q49d
+    NEGLIGIBLE = "Negligible"  # Q49a
+    MINOR = "Minor (Tier 3)"  # Q49b
+    MODERATE = "Moderate (Tier 2)"  # Q49c
+    MAJOR = "Major (Tier 1)"  # Q49d
 
 
 class WirelessTechnology(str, enum.Enum):
-    BLUETOOTH = "Bluetooth"            # Q51a
-    WIFI = "Wifi"                      # Q51b
-    ZIGBEE = "Zigbee"                  # Q51c
-    RFID = "RFID"                      # Q51d
-    CELLULAR = "Cellular"              # Q51e
-    OTHER = "Other"                    # Q51f
+    BLUETOOTH = "Bluetooth"  # Q51a
+    WIFI = "Wifi"  # Q51b
+    ZIGBEE = "Zigbee"  # Q51c
+    RFID = "RFID"  # Q51d
+    CELLULAR = "Cellular"  # Q51e
+    OTHER = "Other"  # Q51f
 
 
 class RFIDRange(str, enum.Enum):
     SHORT = "Short Range (<6 inches)"  # Q52a
-    LONG = "Long Range"                # Q52b
+    LONG = "Long Range"  # Q52b
 
 
 class WirelessQoS(BaseModel):
@@ -310,57 +316,52 @@ class WirelessQoS(BaseModel):
     Q50: Summarize Quality of Service aspects. Keep brief, evidence-backed text.
     All fields optional; fill whatever you can parse.
     """
+
     accessibility: Optional[str] = Field(
         default=None,
-        description="Signal stability/priority (e.g., consistent signal, no dropout)."
+        description="Signal stability/priority (e.g., consistent signal, no dropout).",
     )
     latency: Optional[str] = Field(
         default=None,
-        description="Latency characteristics (e.g., real-time, minimal delay)."
+        description="Latency characteristics (e.g., real-time, minimal delay).",
     )
     throughput: Optional[str] = Field(
-        default=None,
-        description="Bandwidth / data volume handling."
+        default=None, description="Bandwidth / data volume handling."
     )
     data_integrity: Optional[str] = Field(
         default=None,
-        description="Packet errors, encryption/auth, availability, redundancy."
+        description="Packet errors, encryption/auth, availability, redundancy.",
     )
 
+
 class WirelessCoexistence(BaseModel):
-    functions: List[WirelessFunction] = Field([]) # Q47
+    functions: List[WirelessFunction] = Field([])  # Q47
     risks: Optional[str] = Field(
         default=None,
-        description="Risks due to failure/disruption/delay; include inherent complete-loss risk. (Q48)"
+        description="Risks due to failure/disruption/delay; include inherent complete-loss risk. (Q48)",
     )
     safeguards: Optional[str] = Field(
         default=None,
-        description="Safeguards/redundancies built into the function. (Q48)"
+        description="Safeguards/redundancies built into the function. (Q48)",
     )
     risk_tier: Optional[WirelessRiskTier] = Field(
-        default=None,
-        description="Risk of the wireless function per AAMI TIR69. (Q49)"
+        default=None, description="Risk of the wireless function per AAMI TIR69. (Q49)"
     )
-    qos: Optional[WirelessQoS] = Field(
-        default=None,
-        description="QoS summary (Q50)."
-    )
+    qos: Optional[WirelessQoS] = Field(default=None, description="QoS summary (Q50).")
     technologies: Optional[List[WirelessTechnology]] = Field(
-        default=None,
-        description="Technologies used by this function (Q51)."
+        default=None, description="Technologies used by this function (Q51)."
     )
     rfid_range: Optional[RFIDRange] = Field(
-        default=None,
-        description="If RFID is used, intended operating range (Q52)."
+        default=None, description="If RFID is used, intended operating range (Q52)."
     )
     cellular_coverage_mitigations: Optional[str] = Field(
         default=None,
-        description="If Cellular is used, mitigations for poor/no coverage and subscription management (Q53)."
+        description="If Cellular is used, mitigations for poor/no coverage and subscription management (Q53).",
     )
-    coexistence_tier_met: Optional[bool] = None # Q54
+    coexistence_tier_met: Optional[bool] = None  # Q54
     fwp_summary: Optional[str] = None  # Functional Wireless Performance summary # Q55
     eut_exposed: Optional[bool] = None  # EUT exposed to expected signals
-    fwp_maintained: Optional[bool] = None # Q58
+    fwp_maintained: Optional[bool] = None  # Q58
     risk_mitigations_pages: List[PageRef] = Field([])
     attachments: List[AttachmentRef] = Field([])
     confidence: Optional[float] = None
@@ -370,7 +371,7 @@ class WirelessCoexistence(BaseModel):
 
 
 class SoftwarePerformance(BaseModel):
-    contains_software: Optional[bool] = None # Q60
+    contains_software: Optional[bool] = None  # Q60
     digital_health: Optional[bool] = None  # SaMD / SiMD flag # Q61
     documentation_level: Optional[str] = None  # e.g. "moderate" # Q62
     confidence: Optional[float] = None
@@ -380,8 +381,8 @@ class SoftwarePerformance(BaseModel):
 
 
 class Interoperability(BaseModel):
-    interfaces: List[ElectronicInterface] | None = None # Covers Q79 to Q84
-    risk_assessment_attachment: Optional[AttachmentRef] = None # Q85
+    interfaces: List[ElectronicInterface] | None = None  # Covers Q79 to Q84
+    risk_assessment_attachment: Optional[AttachmentRef] = None  # Q85
     labeling_pages: List[PageRef] | None = None
     confidence: Optional[float] = None
 
@@ -390,8 +391,8 @@ class Interoperability(BaseModel):
 
 
 class Biocompatibility(BaseModel):
-    tissue_contacting: Optional[bool] = None # Q86
-    components: List[BioMaterial] | None = None 
+    tissue_contacting: Optional[bool] = None  # Q86
+    components: List[BioMaterial] | None = None
     repeat_exposure: Optional[bool] = None
     test_reports: List[AttachmentRef] | None = None
     rationale_if_no_test: Optional[str] = None
@@ -402,16 +403,18 @@ class Biocompatibility(BaseModel):
 
 
 class SterilityValidation(BaseModel):
-    packaged_as_sterile: Optional[bool] = None # Q98
-    methods: Optional[List[SterilizationMethod]] = None  # making it optional # Q99 and Q101
-    sterilized_componets: Optional[str] = None # Q100
-    radiation_dose: Optional[str] = None # Q102
-    validation_standards: Optional[str] = None # Q103
-    sterilant_residuals: Optional[str] = None # Q104
+    packaged_as_sterile: Optional[bool] = None  # Q98
+    methods: Optional[List[SterilizationMethod]] = (
+        None  # making it optional # Q99 and Q101
+    )
+    sterilized_componets: Optional[str] = None  # Q100
+    radiation_dose: Optional[str] = None  # Q102
+    validation_standards: Optional[str] = None  # Q103
+    sterilant_residuals: Optional[str] = None  # Q104
     validation_method: Optional[str] = None  # half‑cycle, overkill etc. #Q105 and Q106
     sterility_assurance_level: Optional[str] = None  # Sterility Assurance Level Q107
-    pyrogenicity_test: Optional[bool] = None # Q108
-    packaging_description: Optional[str] = None # Q109
+    pyrogenicity_test: Optional[bool] = None  # Q108
+    packaging_description: Optional[str] = None  # Q109
     modifications_warning_confirmed: Optional[bool] = None
     attachments: List[AttachmentRef] = Field([])
     confidence: Optional[float] = None
@@ -421,8 +424,8 @@ class SterilityValidation(BaseModel):
 
 
 class ShelfLife(BaseModel):
-    assessed_before: Optional[bool] = None # Q110
-    proposed_shelf_life_months: Optional[int] = None # Q111
+    assessed_before: Optional[bool] = None  # Q110
+    proposed_shelf_life_months: Optional[int] = None  # Q111
     attachments: List[AttachmentRef] = Field([])
     rationale_if_no_test: Optional[str] = None
     confidence: Optional[float] = None
@@ -433,19 +436,19 @@ class ShelfLife(BaseModel):
 
 class CyberSecurity(BaseModel):
     threat_model_attachment: Optional[AttachmentRef] = None
-    threat_methedology: Optional[str] = None # Q65
-    architecture_views_present: Optional[bool] = None # Q66
-    risk_assessment_attachment: Optional[AttachmentRef] = None # Q67
+    threat_methedology: Optional[str] = None  # Q65
+    architecture_views_present: Optional[bool] = None  # Q66
+    risk_assessment_attachment: Optional[AttachmentRef] = None  # Q67
     uses_exploitability_instead_of_probability: Optional[bool] = Field(
         default=None,
-        description="Q68: From risk matrix; True if exploitability replaces probability." # Q68
+        description="Q68: From risk matrix; True if exploitability replaces probability.",  # Q68
     )
-    sbom_attachment: Optional[AttachmentRef] = None # Q69
-    eol_support_doc_attachment: Optional[AttachmentRef] = None # Q70
-    supported_operating_systems: Optional[str] = None # Q71
-    unresolved_anomalies_attachment: Optional[AttachmentRef] = None # Q73
+    sbom_attachment: Optional[AttachmentRef] = None  # Q69
+    eol_support_doc_attachment: Optional[AttachmentRef] = None  # Q70
+    supported_operating_systems: Optional[str] = None  # Q71
+    unresolved_anomalies_attachment: Optional[AttachmentRef] = None  # Q73
     patch_plan_pages: List[PageRef] = Field([])
-    security_controls_categories: Optional[str] = None # Q75
+    security_controls_categories: Optional[str] = None  # Q75
     security_controls_pages: List[PageRef] = Field([])
     confidence: Optional[float] = None
 
@@ -473,7 +476,7 @@ class PerformanceTesting(BaseModel):
     shelf_life: Optional[ShelfLife] = None
     cybersecurity: Optional[CyberSecurity] = None
     magnetic_resonance_safety: Optional[str] = None  # Sterility Assurance Level Q112
-    literature_references_included: Optional[bool] = None # Q113
+    literature_references_included: Optional[bool] = None  # Q113
 
     # Roll‑up & meta
     overall_risk_level: Optional[RiskLevel] = None
@@ -483,14 +486,17 @@ class PerformanceTesting(BaseModel):
     created_at: date = Field(default_factory=date.today)
     updated_at: Optional[date] = None
 
+
 # === LLM Predicate Comparison (additive types) ===============================
 
+
 class LLMPredicateRow(BaseModel):
-    section_key: str                 # e.g. "analytical", "clinical", ...
-    test_code: str | None = None     # e.g. "precision", "clin_sens"
-    label: str                       
+    section_key: str  # e.g. "analytical", "clinical", ...
+    test_code: str | None = None  # e.g. "precision", "clin_sens"
+    label: str
     your_value: str | None = None
     predicate_value: str | None = None
+
 
 class LLMGapFinding(BaseModel):
     title: str
@@ -500,6 +506,7 @@ class LLMGapFinding(BaseModel):
     section_key: str
     test_code: str | None = None
 
+
 class LLMPredicateComparisonResult(BaseModel):
     product_id: str
     competitor_id: str | None = None
@@ -508,6 +515,7 @@ class LLMPredicateComparisonResult(BaseModel):
     gaps: list[LLMGapFinding] = Field(default_factory=list)
     model_used: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
 
 # Allow forward‑references (AnimalTesting etc.)
 PerformanceTesting.update_forward_refs()

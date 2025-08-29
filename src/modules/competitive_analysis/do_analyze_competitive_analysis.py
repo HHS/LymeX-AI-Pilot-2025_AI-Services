@@ -172,15 +172,6 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
         )
         for comp_docs in user_competitor_documents
     ]
-
-    # --- REMOVE FORMER COMPETITIVE ANALYSIS RECORDS ---
-
-    logger.info(
-        f"Removing existing competitive analysis records for product_id={product_id}"
-    )
-    await CompetitiveAnalysis.find(
-        CompetitiveAnalysis.product_id == product_id
-    ).delete_many()
     # --- RUN ALL TASKS IN PARALLEL ---
     logger.info("Running all competitive analysis tasks in parallel")
     competitive_analysis_details: list[
@@ -194,14 +185,43 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
         f"Completed {len(competitive_analysis_details)} competitive analysis tasks"
     )
 
-    competitive_analysis_list = [
-        CompetitiveAnalysis(
+    decided_cas = await CompetitiveAnalysis.find(
+        CompetitiveAnalysis.product_id == product_id,
+        CompetitiveAnalysis.accepted is not None,
+    ).to_list()
+    decided_ca_detail_ids = [doc.competitive_analysis_detail_id for doc in decided_cas]
+    decided_ca_detail_ids_map = {
+        doc.competitive_analysis_detail_id: doc for doc in decided_cas
+    }
+    decided_cads = await CompetitiveAnalysisDetail.find(
+        CompetitiveAnalysisDetail.id.in_(decided_ca_detail_ids)
+    ).to_list()
+    decided_cads_map = {
+        doc.product_name: decided_ca_detail_ids_map[doc.id] for doc in decided_cads
+    }
+
+    competitive_analysis_list: list[CompetitiveAnalysis] = []
+    for doc in competitive_analysis_details:
+        ca = CompetitiveAnalysis(
             product_id=product_id,
             competitive_analysis_detail_id=str(doc.id),
             is_self_analysis=doc.product_simple_name == "Your Product",
         )
-        for doc in competitive_analysis_details
-    ]
+        if doc.product_name in decided_cads_map:
+            ca.accepted = decided_cads_map[doc.product_name].accepted
+            ca.accept_reject_reason = decided_cads_map[
+                doc.product_name
+            ].accept_reject_reason
+            ca.accept_reject_by = decided_cads_map[doc.product_name].accept_reject_by
+        competitive_analysis_list.append(ca)
+
+    logger.info(
+        f"Removing existing competitive analysis records for product_id={product_id}"
+    )
+    await CompetitiveAnalysis.find(
+        CompetitiveAnalysis.product_id == product_id
+    ).delete_many()
+
     await CompetitiveAnalysis.insert_many(competitive_analysis_list)
     logger.info("Inserted competitive analysis records into database")
 

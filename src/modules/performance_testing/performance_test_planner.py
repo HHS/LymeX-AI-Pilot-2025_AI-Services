@@ -383,7 +383,7 @@ async def create_plan(
                 test_description=TEST_CATALOGUE[sec][code],
                 status=TestStatus.REJECTED,
                 rejected_justification=reason,
-                ai_decided=True,
+                ai_rejected=True,
             )
         )
 
@@ -435,7 +435,7 @@ async def create_plan(
                     ai_rationale=info.get("ai_rationale"),
                     references=ref_objs or None,
                     associated_standards=std_objs or None,
-                    ai_decided=False,
+                    ai_rejected=False,
                 )
             )
 

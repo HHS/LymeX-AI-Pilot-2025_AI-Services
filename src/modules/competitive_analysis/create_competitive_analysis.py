@@ -42,15 +42,26 @@ async def create_competitive_analysis(
     data_type: str,
 ) -> CompetitiveAnalysisDetail:
     document_hash = hash_document_paths(document_paths)
-    if product_simple_name != "Your Product":
-        existing_detail = await CompetitiveAnalysisDetail.find_one(
-            CompetitiveAnalysisDetail.document_hash == document_hash
+    existing_detail = await CompetitiveAnalysisDetail.find_one(
+        CompetitiveAnalysisDetail.document_hash == document_hash
+    )
+    if existing_detail:
+        logger.info(
+            f"CompetitiveAnalysisDetail already exists for document_hash={document_hash}, returning existing detail."
         )
-        if existing_detail:
-            logger.info(
-                f"CompetitiveAnalysisDetail already exists for document_hash={document_hash}, returning existing detail."
-            )
-            return existing_detail
+        cloned_detail_dict = {
+            **existing_detail.model_dump(),
+            "document_hash": document_hash,
+            "document_names": [path.name for path in document_paths],
+            "product_simple_name": product_simple_name,
+            "confidence_score": confidence_score,
+            "sources": sources,
+            "is_ai_generated": True,
+            "use_system_data": use_system_data,
+            "data_type": data_type,
+        }
+        cloned_detail = CompetitiveAnalysisDetail(**cloned_detail_dict)
+        return cloned_detail
 
     logger.info(
         f"Creating CompetitiveAnalysisDetail for product_simple_name={product_simple_name}, document_hash={document_hash}"
@@ -69,6 +80,7 @@ async def create_competitive_analysis(
             if attempt == 2:
                 raise
     competitive_analysis_detail = CompetitiveAnalysisDetail(
+        **result.model_dump(),
         document_hash=document_hash,
         document_names=[path.name for path in document_paths],
         product_simple_name=product_simple_name,
@@ -77,6 +89,5 @@ async def create_competitive_analysis(
         is_ai_generated=True,
         use_system_data=use_system_data,
         data_type=data_type,
-        **result.model_dump(),
     )
     return await competitive_analysis_detail.save()

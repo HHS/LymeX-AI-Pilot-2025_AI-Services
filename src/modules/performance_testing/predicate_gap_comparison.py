@@ -227,6 +227,12 @@ async def llm_gaps_and_suggestions_all_and_save(
       - save each result to Mongo (collection: predicate_llm_analysis)
     Returns all results in-memory as well.
     """
+
+    # Always start clean
+    await PredicateLLMAnalysis.find(
+        PredicateLLMAnalysis.product_id == product_id
+    ).delete_many()
+
     logger.info(f"Fetching competitive analysis for product_id={product_id}")
     ca_list = await get_competitive_analysis(product_id)
     if not ca_list:

@@ -16,6 +16,7 @@ class Product(Document):
     updated_by: str
     updated_at: datetime
     edit_locked: bool = False
+    excluded_system_data_files: list[str] = []
 
     class Settings:
         name = "product"

@@ -4,6 +4,7 @@ from loguru import logger
 from pydantic import BaseModel
 from src.infrastructure.minio import get_object
 from src.infrastructure.qdrant import search_similar
+from src.modules.product.model import Product
 
 
 system_data_folder = "system_data"
@@ -17,6 +18,7 @@ class SystemProductCompetitiveDocument(BaseModel):
 
 
 async def download_system_product_competitive_documents(
+    product: Product,
     q_vector: list[float],
     number_of_documents: int,
 ) -> list[SystemProductCompetitiveDocument]:
@@ -27,6 +29,11 @@ async def download_system_product_competitive_documents(
     logger.info(
         f"Found similar competitor documents: {', '.join([doc.payload.get('product_name', 'Unknown') for doc in similar_docs])}"
     )
+    similar_docs = [
+        doc
+        for doc in similar_docs
+        if doc.payload.get("filename", "Unknown") not in product.excluded_system_data_files
+    ]
     system_competitor_documents: list[SystemProductCompetitiveDocument] = [
         SystemProductCompetitiveDocument(
             product_name=doc_.payload.get("product_name", "Unknown"),
@@ -41,11 +48,7 @@ async def download_system_product_competitive_documents(
     for doc in system_competitor_documents:
         logger.info(f"Downloading competitor document from MinIO with key={doc.key}")
         raw_data = await get_object(doc.key)
-        doc.product_competitive_document.parent.mkdir(
-            parents=True, exist_ok=True
-        )
+        doc.product_competitive_document.parent.mkdir(parents=True, exist_ok=True)
         doc.product_competitive_document.write_bytes(raw_data)
-        logger.info(
-            f"Saved competitor document to {doc.product_competitive_document}"
-        )
+        logger.info(f"Saved competitor document to {doc.product_competitive_document}")
     return system_competitor_documents

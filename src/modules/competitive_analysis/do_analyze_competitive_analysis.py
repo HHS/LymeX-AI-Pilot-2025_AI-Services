@@ -19,12 +19,17 @@ from src.modules.competitive_analysis.model import (
 )
 from src.modules.competitive_analysis.schema import CompetitiveAnalysisSource
 from src.modules.index_system_data.summarize_files import summarize_files
+from src.modules.product.model import Product
 from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
 from beanie.operators import In
 
 
 async def do_analyze_competitive_analysis(product_id: str) -> None:
+    product = await Product.find_one(Product.id == PydanticObjectId(product_id))
+    if not product:
+        logger.warning(f"Product not found for product_id={product_id}")
+        return
     logger.info(f"Starting competitive analysis for product_id={product_id}")
 
     product_profile_documents = await get_product_profile_documents(product_id)
@@ -46,6 +51,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     )
 
     system_competitor_documents = await download_system_product_competitive_documents(
+        product,
         q_vector,
         environment.competitive_analysis_number_of_system_search_documents,
     )

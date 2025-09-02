@@ -49,6 +49,7 @@ async def create_competitive_analysis(
         logger.info(
             f"CompetitiveAnalysisDetail already exists for document_hash={document_hash}, returning existing detail."
         )
+        logger.info(f"New Sources: {sources}")
         cloned_detail_dict = {
             **existing_detail.model_dump(),
             "document_hash": document_hash,
@@ -60,7 +61,11 @@ async def create_competitive_analysis(
             "use_system_data": use_system_data,
             "data_type": data_type,
         }
+        # remove id from cloned_detail_dict
+        cloned_detail_dict.pop("id", None)
+        logger.info(f"Cloned Detail Dict: {cloned_detail_dict}")
         cloned_detail = CompetitiveAnalysisDetail(**cloned_detail_dict)
+        await cloned_detail.save()
         return cloned_detail
 
     logger.info(

@@ -19,8 +19,9 @@ system_instruction = (
     "For question_number 25, 26, and 39 you MUST include both the exact document "
     "filename (from the uploaded files) and the precise page number(s) in the answer text. "
     "Use this exact suffix format in the answer string: "
-    "\" document: <FILENAME>; pages: [<N> | \\\"<start>-<end>\\\", ...] \" "
-    "(e.g., \"... document: EMC_Report_RevB.pdf; pages: [7, \\\"12-13\\\"]\")."
+    '" document: <FILENAME>; pages: [<N> | \\"<start>-<end>\\", ...] " '
+    '(e.g., "... document: EMC_Report_RevB.pdf; pages: [7, \\"12-13\\"]").'
+    "If not available or applicable, do not include document information."
 )
 user_question = (
     "Please extract a complete information using all uploaded FDA PDF "
@@ -48,17 +49,24 @@ async def do_analyze_checklist(product_id: str) -> None:
 
     # Provide the model with the exact filenames so it can cite them verbatim.
     # We then extend the user_question with the filenames and a reminder of the format.
-    file_names = [p.name for p in checklist_document_paths]
+    product_profile_documents_file_names = [
+        p.file_name for p in product_profile_documents
+    ]
+    performance_testing_documents_file_names = [
+        p.file_name for p in performance_testing_documents
+    ]
+    file_names = [
+        *product_profile_documents_file_names,
+        *performance_testing_documents_file_names,
+    ]
     evidence_hint = (
         "\n\nUploaded filenames:\n"
         f"{json.dumps(file_names, ensure_ascii=False)}\n"
         "For question_number 25, 26, and 39: include in the answer the exact filename from "
-        "this list and page numbers using the suffix format "
-        "\" document: <FILENAME>; pages: [<N> | \\\"<start>-<end>\\\", ...] \"."
+        "this list and page numbers using the format "
+        '" document: <FILENAME>; pages: [<N> | \\"<start>-<end>\\", ...] ".'
     )
     user_question_runtime = user_question + evidence_hint
-
-
     result = await extract_files_data(
         file_paths=checklist_document_paths,
         system_instruction=system_instruction,

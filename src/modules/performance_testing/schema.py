@@ -136,6 +136,15 @@ class PageRef(BaseModel):
 
     page: int
     comment: Optional[str] = None
+    # New optional context so a page number is traceable to a specific file
+    document_name: Optional[str] = Field(
+        default=None,
+        description="Human readable filename or title, e.g. 'EMC_Report_RevB.pdf'",
+    )
+    document_url: Optional[str] = Field(
+        default=None,
+        description="URL/presigned link to the document if available",
+    )
 
 
 # Wireless‑specific helper

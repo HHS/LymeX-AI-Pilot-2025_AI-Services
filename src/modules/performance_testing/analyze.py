@@ -293,13 +293,17 @@ async def _generic_extract(
         return
 
     # key normalisation
-    attachments = record.pop("attachments", None)
+    """attachments = record.pop("attachments", None)
     if attachments:  # only if not None / not empty
         record["attachment_ids"] = [a.get("id") for a in attachments if a]
 
     pages = record.pop("pages", None)
     if pages:
         record["page_refs"] = [p.get("page") for p in pages if p]
+    """
+    # normalize empty lists if model omitted fields.
+    record.setdefault("attachments", [])
+    record.setdefault("pages", [])
 
     try:
         obj = schema_cls.parse_obj(record)

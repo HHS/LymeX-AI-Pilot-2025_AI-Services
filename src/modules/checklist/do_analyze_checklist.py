@@ -67,7 +67,6 @@ async def do_analyze_checklist(product_id: str) -> None:
         '" document: <FILENAME>; pages: [<N> | \\"<start>-<end>\\", ...] ".'
     )
     user_question_runtime = user_question + evidence_hint
-
     result = await extract_files_data(
         file_paths=checklist_document_paths,
         system_instruction=system_instruction,

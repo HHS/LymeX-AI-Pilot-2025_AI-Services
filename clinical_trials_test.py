@@ -20,10 +20,10 @@ os.environ.update(
     REDIS_PORT="6379",
     REDIS_DB="0",
     MINIO_INTERNAL_ENDPOINT="https://s3.us-west-2.amazonaws.com",
-    MINIO_ROOT_USER="AKIAYJNH5FHSRDXKQTPT",
-    MINIO_ROOT_PASSWORD="sM49KgfEU9NwYf2RW4BhSQV6lZdwPMsK3w1xxWGY",
+    MINIO_ROOT_USER=os.getenv("MINIO_ROOT_USER", "test-user"),
+    MINIO_ROOT_PASSWORD=os.getenv("MINIO_ROOT_PASSWORD", "test-password"),
     MINIO_BUCKET="nois2-192-dev",
-    OPENAI_API_KEY="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",
+    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "test-key"),
     CT_SHARDS_S3_PREFIX="clinical_trial_data/shards"
 )
 

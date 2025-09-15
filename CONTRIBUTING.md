@@ -1,23 +1,18 @@
 # How to Contribute
-
-We're so thankful you're considering contributing to an [open source project of the U.S. government](https://code.gov/)! If you're unsure about anything, just ask -- 
-or submit the issue or pull request anyway. The worst that can happen is you'll be politely asked to change something. We appreciate all friendly contributions.
+We're so thankful you're considering contributing to an [open source project of the U.S. government](https://code.gov/)! If you're unsure about anything, just ask -- or submit the issue or pull request anyway. The worst that can happen is you'll be politely asked to change something. We appreciate all friendly contributions.
 
 We encourage you to read this project's CONTRIBUTING policy (you are here), its
 [LICENSE](LICENSE.md), and its [README](README.md).
 
 ## Getting Started
-
 If you would like to comment and provide feedback on the LymeX Regulatory Support (AI), please let us know by filing an **[issue on our GitHub repository](https://github.com/HHS/NASA-NOIS2-192-AI-Services/issues).**
 
 ### Contribution Guidelines
-
 To ensure proper repository use, the following guidelines establish how users are expected to contribute to the project.  
 
 #### Issues and Discussions  
 * Submit issues and discussion topics within the scope of the project. Pertinent comments, ideas, and feedback are encouraged!
-* When submitting issues or participating in discussions, avoid ad hominem attacks, foul language, and divisive tone; refrain from making derogatory comments,
-  harassing other members, or disrupting the focus of the community and project.
+* When submitting issues or participating in discussions, avoid ad hominem attacks, foul language, and divisive tone; refrain from making derogatory comments, harassing other members, or disrupting the focus of the community and project.
 * Do not share any personally identifiable information (PII), protected health information (PHI), or other sensitive information.
 
 #### Documentation
@@ -51,9 +46,7 @@ Comments should be formatted to a width no greater than 80 columns.
 
 Files should be exempt of trailing spaces.
 
-We adhere to a specific format for commit messages. Please write your commit
-messages along these guidelines. Please keep the line width no greater than 80
-columns (You can use `fmt -n -p -w 80` to accomplish this).
+We adhere to a specific format for commit messages. Please write your commit messages along these guidelines. Please keep the line width no greater than 80 columns (You can use `fmt -n -p -w 80` to accomplish this).
 
     module-name: One line description of your change (less than 72 characters)
 
@@ -89,14 +82,9 @@ Pull requests will be reviewed by the LymeX Regulatory Support (AI) team.
 
 ### Open Source Policy
 
-We adhere to the [CMS Open Source
-Policy](https://github.com/CMSGov/cms-open-source-policy). If you have any
-questions, just [shoot us an email](mailto:opensource@cms.hhs.gov).
+We adhere to the [CMS Open Source Policy](https://github.com/CMSGov/cms-open-source-policy). If you have any questions, just [shoot us an email](mailto:opensource@cms.hhs.gov).
 
 ### Security and Responsible Disclosure Policy
-
-*Submit a vulnerability:* Vulnerability reports can be submitted through [Bugcrowd](https://bugcrowd.com/cms-vdp). Reports may be submitted anonymously. If you share contact information, we will acknowledge receipt of your report within 3 business days.
-
 For more information about our Security, Vulnerability, and Responsible Disclosure Policies, see [SECURITY.md](SECURITY.md).
 
 ## Public domain

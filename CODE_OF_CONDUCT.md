@@ -1,12 +1,10 @@
 # LymeX Regulatory Support (AI) Code of Conduct
 
 ## HHS Values
-
 HHS is dedicated to providing a safe, harassment-free, positive environment for everyone, regardless of race, ethnicity, sex, sexual orientation, religion, or disability. 
 HHS does not tolerate harassment of members of our community under any circumstances.  
 
-By contributing to this repository, you agree to adhere to the rules set forth in this document and uphold the  core values underpinning the HHS community to 
-foster a community built on openness, kindness, and collective benefit. These core values also serve as the code of conduct foundation for HHS Open Source repositories:  
+By contributing to this repository, you agree to adhere to the rules set forth in this document and uphold the  core values underpinning the HHS community to foster a community built on openness, kindness, and collective benefit. These core values also serve as the code of conduct foundation for HHS Open Source repositories:  
 
 1. **TRANSPARENCY:** Radical openness by default.
 2. **PURPOSE:** Data that serves the public good.
@@ -16,9 +14,7 @@ foster a community built on openness, kindness, and collective benefit. These co
 6. **INTEGRITY:** Find the truth. Tell the truth.
 
 ## Code of Conduct
-
-The below section describes the do’s and don’ts while engaging with any HHS Open Source repository and should be followed at all times. Failure to comply with these 
-expectations may result in permanent removal from the project repository.  
+The below section describes the do’s and don’ts while engaging with any HHS Open Source repository and should be followed at all times. Failure to comply with these expectations may result in permanent removal from the project repository.  
 
 ### Expected Behavior
 * Use respectful and constructive language when interacting with fellow community members and submitting feedback to maintainers.
@@ -35,11 +31,9 @@ expectations may result in permanent removal from the project repository.
 * Continual disruption of discussions, announcements, or other project-related engagement is prohibited.
 
 ## Acknowledgement
-By joining and contributing to this repository and its associated materials, discussions, and forms, you agree to the adhere to the expected behaviors and decorum 
-detailed in this document.
+By joining and contributing to this repository and its associated materials, discussions, and forms, you agree to the adhere to the expected behaviors and decorum detailed in this document.
 
 ## Contact Information
 For questions, concerns, or reporting violations of the code of conduct, please contact the repository maintainers at [CDO@hhs.gov](mailto:cdo@hhs.gov).  
 
-All reports received for code of conduct violations will be reviewed, investigated, and will result in a response that is deemed appropriate given the context of the 
-circumstance(s). Persons found in violation of the code of conduct may receive a formal warning to cease their behavior or be removed from the community indefinitely.
+All reports received for code of conduct violations will be reviewed, investigated, and will result in a response that is deemed appropriate given the context of the circumstance(s). Persons found in violation of the code of conduct may receive a formal warning to cease their behavior or be removed from the community indefinitely.

@@ -10,9 +10,7 @@ If you'd like to contribute directly to LymeX Regulatory Support AI Services rep
 
 ### Open Source Policy
 
-We adhere to the [HHS Open Source
-Policy](https://www.hhs.gov/sites/default/files/hhs-open-gov-plan-v4-2016.pdf). If you have any
-questions, just [send us an email](mailto:cdo@hhs.gov).
+We adhere to the [HHS Open Source Policy](https://www.hhs.gov/sites/default/files/hhs-open-gov-plan-v4-2016.pdf). If you have any questions, just [send us an email](mailto:cdo@hhs.gov).
 
 ### Security and Responsible Disclosure Policy
 

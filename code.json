@@ -12,7 +12,7 @@
     ],
     "usageType": "openSource"
   },
-  "organization": "Centers for Medicare & Medicaid Services",
+  "organization": "United States Department of Health and Human Services",
   "repositoryURL": "https://github.com/HHS/nasa-nois2-192-ai-services",
   "repositoryHost": "github.com/HHS",
   "repositoryVisibility": "public",
@@ -45,8 +45,8 @@
     "Data-collection"
   ],
   "contact": {
-    "email": "opensource@cms.hhs.gov",
-    "name": "CMS Open Source Program Office"
+    "email": "cdo@hhs.gov",
+    "name": "Chief Data Officer (CDO) at Health and Human Services"
   },
   "feedbackMechanisms": [
     "https://github.com/HHS/nasa-nois2-192-ai-services/issues"
@@ -57,8 +57,8 @@
   "fismaLevel": "Low",
   "group": "HHS",
   "projects": [
-    "NASA-NOIS2-192-Backend",
-    "NASA-NOIS2-192-Frontend"
+    "https://github.com/HHS/NASA-NOIS2-192-Backend",
+    "https://github.com/HHS/NASA-NOIS2-192-Frontend"
   ],
   "systems": [],
   "upstream": [],

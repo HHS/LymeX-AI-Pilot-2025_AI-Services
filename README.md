@@ -28,6 +28,6 @@ For more information and resources about SBOMs, visit: https://www.cisa.gov/sbom
 
 ## Public domain
 
-This project is in the public domain within the United States, and copyright and related rights in the work worldwide are waived through the [CC0 1.0 Universal public domain dedication](https://creativecommons.org/publicdomain/zero/1.0/) as indicated in [LICENSE](LICENSE).
+This project is in the public domain within the United States, and copyright and related rights in the work worldwide are waived through the [Apache License Version 2.0, January 2004](https://www.apache.org/licenses/LICENSE-2.0.txt) as indicated in [LICENSE](LICENSE).
 
 All contributions to this project will be released under the CC0 dedication. By submitting a pull request or issue, you are agreeing to comply with this waiver of copyright interest.

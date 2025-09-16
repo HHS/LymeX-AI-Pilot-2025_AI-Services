@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional, List                 
 from beanie import Document, PydanticObjectId
 from src.modules.product_profile.schema import (
     ProductProfileSchemaBase,

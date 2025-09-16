@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from beanie import Document, PydanticObjectId
 from src.modules.competitive_analysis.schema import (
     CompetitiveAnalysisDetailBase,
@@ -6,6 +7,9 @@ from src.modules.competitive_analysis.schema import (
     CompetitiveAnalysisDetailSchema,
     CompetitiveAnalysisSource,
 )
+from src.modules.product.model import Product
+from src.modules.product_profile.model import ProductProfile
+from src.modules.product_profile.schema import Feature, Performance
 
 
 class CompetitiveAnalysis(Document):

@@ -44,6 +44,7 @@ class PerformanceTestingReference(BaseModel):
     url: str | None = None
     description: str | None = None
 
+# ------------------------------ Export – used by other modules for type‑checking ------------------------------
 
 class PerformanceTestingAssociatedStandard(BaseModel):
     name: str  # e.g. "ISO 10993‑4"

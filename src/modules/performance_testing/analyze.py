@@ -55,6 +55,9 @@ from src.modules.performance_testing.schema import (
     PerformanceTestingAssociatedStandard,
 )
 
+# ─────── Progress helper ──────────────────────────────────────── 
+class AnalyzePTProgress:
+    """Thin wrapper around the AnalyzePerformanceTestingProgress document."""
 
 # ─────── Progress helper ────────────────────────────────────────
 class AnalyzePTProgress:

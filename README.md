@@ -1,43 +1,33 @@
 # NASA-NOIS2-192-AI-Services
 
-Full-text extraction, QA/template checks, semantic embeddings and
-≤ 250-word summaries for FDA decision-summary PDFs.
+AI-powered regulatory support tool for Lyme disease diagnostics.
 
----
+### Contributing
 
-## Prerequisites
+If you'd like to contribute directly to LymeX Regulatory Support AI Services repository, please follow our contributing guidelines [here](CONTRIBUTING.md).
 
-| Tool | Version |
-|------|---------|
-| Python | 3.10.18 (recommended) |
-| pip   | ≥ 22.x  |
-| (Optional) Conda | any recent Miniconda/Anaconda |
+## Policies
 
----
+### Open Source Policy
 
-## Quick-start (local dev)
+We adhere to the [HHS Open Source Policy](https://www.hhs.gov/sites/default/files/hhs-open-gov-plan-v4-2016.pdf). If you have any questions, just [send us an email](mailto:cdo@hhs.gov).
 
-```bash
-# 1️⃣  clone this repo
-git clone <this-git-url>
-cd NASA-NOIS2-192-AI-Services-src-layout
+### Security and Responsible Disclosure Policy
 
-# 2️⃣  create / activate a clean env (optional but recommended)
-conda create -n nasa_ai python=3.10.18 -y
-conda activate nasa_ai
+_Submit a vulnerability:_ Vulnerability reports can be submitted through processes listed on the [HHS VDP Page](https://www.hhs.gov/vulnerability-disclosure-policy/index.html). 
 
-# 3️⃣  install Python deps
-pip install -r requirements.txt
+For more information about our Security, Vulnerability, and Responsible Disclosure Policies, see [SECURITY.md](SECURITY.md).
 
-# 4️⃣  one-time NLTK tokenizer download (needed by TextRank fallback)
-python -m nltk.downloader punkt
+### Software Bill of Materials (SBOM)
 
-# 5️⃣  install project in *editable* mode
-pip install -e .
+A Software Bill of Materials (SBOM) is a formal record containing the details and supply chain relationships of various components used in building software.
 
-# 6️⃣ Right now the OpenAI Key is hardcoded in the script  
-# (optional) add OpenAI key for GPT-4o summaries to the env variable
-# set OPENAI_API_KEY=sk-...
+In the spirit of [Executive Order 14028 - Improving the Nation’s Cyber Security](https://www.gsa.gov/technology/it-contract-vehicles-and-purchasing-programs/information-technology-category/it-security/executive-order-14028), a SBOM for this repository is provided here: https://github.com/hhs/hhs-cdo/network/dependencies.
 
-# 7️⃣  smoke-test the full pipeline
-python ai_service_test.py
+For more information and resources about SBOMs, visit: https://www.cisa.gov/sbom.
+
+## Public domain
+
+This project is in the public domain within the United States, and copyright and related rights in the work worldwide are waived through the [CC0 1.0 Universal public domain dedication](https://creativecommons.org/publicdomain/zero/1.0/) as indicated in [LICENSE](LICENSE).
+
+All contributions to this project will be released under the CC0 dedication. By submitting a pull request or issue, you are agreeing to comply with this waiver of copyright interest.

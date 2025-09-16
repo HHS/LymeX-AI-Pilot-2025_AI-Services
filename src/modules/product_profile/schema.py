@@ -134,7 +134,7 @@ class ProductProfileSchemaBase:
     )
     speed: int = Field(-1, description="Speed")
     reliability: int = Field(-1, description="Reliability")
-    price: int = Field(0, description="Price of the product")
+    price: int = Field(None, description="Price of the product")
     instructions: list[str] = Field(
         [], description="General instructions for the product"
     )

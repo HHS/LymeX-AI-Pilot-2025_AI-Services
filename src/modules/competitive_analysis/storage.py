@@ -3,9 +3,7 @@ import mimetypes
 from loguru import logger
 from src.infrastructure.minio import (
     generate_get_object_presigned_url,
-    generate_put_object_presigned_url,
     list_objects,
-    remove_object,
 )
 from src.modules.competitive_analysis.schema import (
     CompetitiveAnalysisDocumentResponse,
@@ -34,6 +32,8 @@ async def analyze_competitive_analysis_document(
     file_name = analysis_document_info["file_name"]
     url = await generate_get_object_presigned_url(obj.object_name)
     path = await download_minio_file(obj.object_name)
+    path.rename(path.parent / file_name)
+    path = path.parent / file_name
     document = CompetitiveAnalysisDocumentResponse(
         document_name=document_name,
         file_name=file_name,
@@ -66,28 +66,6 @@ async def get_competitive_analysis_documents(
         analyze_competitive_analysis_document_tasks
     )
     return documents
-
-
-async def get_upload_competitive_analysis_document_url(
-    product_id: str,
-    analysis_document_info: AnalysisDocumentInfo,
-) -> str:
-    extension = analysis_document_info["file_name"].split(".")[-1]
-    document_name = encode_analysis_document_info(analysis_document_info)
-    document_name = f"{document_name}.{extension}"
-    folder = get_competitive_analysis_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    url = await generate_put_object_presigned_url(object_name)
-    return url
-
-
-async def delete_competitive_analysis_document(
-    product_id: str,
-    document_name: str,
-) -> None:
-    folder = get_competitive_analysis_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    await remove_object(object_name)
 
 
 # ================ FOLDERS ====================

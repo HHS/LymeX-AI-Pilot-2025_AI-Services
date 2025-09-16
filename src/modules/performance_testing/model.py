@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from beanie import Document, PydanticObjectId
 from pydantic import Field
+from typing import Optional
 
 from src.modules.performance_testing.schema import (
     AnalyticalStudy,
@@ -17,6 +18,8 @@ from src.modules.performance_testing.schema import (
     SoftwarePerformance,
     SterilityValidation,
     WirelessCoexistence,
+    LLMPredicateRow, 
+    LLMGapFinding,
 )
 
 
@@ -35,6 +38,8 @@ class PerformanceTesting(Document):
     shelf_life: ShelfLife | None = None
     cybersecurity: CyberSecurity | None = None
     overall_risk_level: RiskLevel | None = None
+    magnetic_resonance_safety: Optional[str] = None  # Sterility Assurance Level Q112
+    literature_references_included: Optional[bool] = None # Q113
     status: ModuleStatus = ModuleStatus.PENDING
     missing_items: list[str] = Field([])
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -68,3 +73,21 @@ class AnalyzePerformanceTestingProgress(Document):
         json_encoders = {
             PydanticObjectId: str,
         }
+
+class PredicateLLMAnalysis(Document):
+    product_id: str
+    product_name: str
+    competitor_id: str | None = None
+    competitor_name: str | None = None
+    rows: list[LLMPredicateRow] = Field(default_factory=list)
+    gaps: list[LLMGapFinding] = Field(default_factory=list)
+    model_used: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime | None = None
+
+    class Settings:
+        name = "predicate_llm_analysis"
+
+    async def save(self, *args, **kwargs):
+        self.updated_at = datetime.now(timezone.utc)
+        return await super().save(*args, **kwargs)

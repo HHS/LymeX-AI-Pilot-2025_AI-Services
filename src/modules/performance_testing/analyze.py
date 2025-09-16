@@ -23,6 +23,10 @@ from src.modules.performance_testing.storage import (
     get_performance_testing_documents,  # ← new
 )
 
+from src.modules.performance_testing.predicate_gap_comparison import (
+    llm_gaps_and_suggestions_all_and_save,
+)
+
 from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
 from src.utils.parse_openai_json import parse_openai_json
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
@@ -289,13 +293,17 @@ async def _generic_extract(
         return
 
     # key normalisation
-    attachments = record.pop("attachments", None)
+    """attachments = record.pop("attachments", None)
     if attachments:  # only if not None / not empty
         record["attachment_ids"] = [a.get("id") for a in attachments if a]
 
     pages = record.pop("pages", None)
     if pages:
         record["page_refs"] = [p.get("page") for p in pages if p]
+    """
+    # normalize empty lists if model omitted fields.
+    record.setdefault("attachments", [])
+    record.setdefault("pages", [])
 
     try:
         obj = schema_cls.parse_obj(record)
@@ -352,7 +360,7 @@ async def _generic_extract(
                     ]
 
                     # ▸ status
-                    card.status = TestStatus.SUGGESTED   # Suggested by AI
+                    card.status = TestStatus.SUGGESTED  # Suggested by AI
                     break
             await plan.save()
     except Exception as exc:
@@ -436,9 +444,9 @@ def _section_key(tool_name: str) -> str:
 async def analyze_performance_testing(
     product_id: str,
     attachment_ids: Optional[List[str]] = None,
-    card_ids: Optional[Sequence[str]] = None, # run selected cards only
+    card_ids: Optional[Sequence[str]] = None,  # run selected cards only
 ) -> int:
-    lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=60)
+    lock = redis_client.lock(f"pt_analyze_lock:{product_id}", timeout=15)
     if not await lock.acquire(blocking=False):
         logger.warning("Analysis already running for {}", product_id)
         return
@@ -456,14 +464,14 @@ async def analyze_performance_testing(
             plan_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
 
         # ── Decide which section(s) we really need to extract ──────────────
-        print('=============================================')
-        print('=============================================')
+        print("=============================================")
+        print("=============================================")
         print(f"Analyzing performance testing for {product_id} with plan: {plan_doc}")
         if plan_doc and plan_doc.tests:
             if card_ids:
                 # user asked for *specific* card(s)
                 wanted = {str(cid) for cid in card_ids}
-                chosen  = [c for c in plan_doc.tests if str(c.id) in wanted]
+                chosen = [c for c in plan_doc.tests if str(c.id) in wanted]
                 if not chosen:
                     logger.warning("Card‑id(s) %s not found for %s", wanted, product_id)
                     return 0
@@ -472,7 +480,7 @@ async def analyze_performance_testing(
                 # default: run every test card in the plan
                 active_sections = {c.section_key for c in plan_doc.tests}
         else:
-            # no plan means run everything 
+            # no plan means run everything
             active_sections = None
 
         """# build a set of section keys that actually contain cards
@@ -533,6 +541,21 @@ async def analyze_performance_testing(
         ).delete_many()
         await _run_all_sections(client, aid, mapping, product_id, attachment_ids)
 
+        # Guard with env so it’s opt-in and won’t surprise anyone with API usage.
+        try:
+            model = "gpt-4o"
+            results = await llm_gaps_and_suggestions_all_and_save(
+                product_id=product_id,
+                model=model,
+                overwrite=True,  # upsert results for each competitor
+            )
+            logger.info(
+                "Predicate LLM saved results for {} competitor(s).", len(results)
+            )
+        except Exception as e:
+            # Never fail the main PT analysis if LLM step hiccups
+            logger.warning("Predicate LLM step skipped due to error: {}", e)
+
         await progress.done()  # mark 100 %
     except Exception as exc:
         logger.error(f"Performance testing analysis failed for {product_id}: {exc}")
@@ -541,6 +564,7 @@ async def analyze_performance_testing(
         await lock.release()
 
     return num_files
+
 
 # --------------------------------------------------------------------------
 # Convenience wrappers – keeping the public API explicit & readable

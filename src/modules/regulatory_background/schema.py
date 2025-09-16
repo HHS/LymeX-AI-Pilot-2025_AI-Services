@@ -1,45 +1,48 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
 
-# ===== SUMMARY =====
-class RegulatorySummaryHighlight(BaseModel):
+
+class RegulatoryBackgroundHighlight(BaseModel):
     title: str
     detail: str
 
-class RegulatorySummary(BaseModel):
+
+class RegulatoryBackgroundSummary(BaseModel):
     title: str
     description: str
-    highlights: List[RegulatorySummaryHighlight]
+    highlights: list[RegulatoryBackgroundHighlight]
 
-# ===== FINDINGS =====
-class RegulatoryFinding(BaseModel):
-    status: str  # "found" or "missing"
+
+class RegulatoryBackgroundFinding(BaseModel):
+    status: str
     field: str
     label: str
-    value: Optional[str]
-    sourceFile: Optional[str]
-    sourcePage: Optional[int]
-    tooltip: Optional[str] = None
-    suggestion: Optional[str] = None
-    confidenceScore: Optional[int] = None
-    userAction: Optional[bool] = None
+    value: str
+    source_file: str | None
+    source_page: int | None
+    suggestion: str | None
+    tooltip: str | None
+    confidence_score: int | None
+    user_action: bool | None
 
-# ===== CONFLICTS =====
-class RegulatoryConflict(BaseModel):
+
+class RegulatoryBackgroundConflict(BaseModel):
     field: str
     phrase: str
     conflict: str
     source: str
-    suggestion: Optional[str] = None
-    userAction: Optional[bool] = None
+    suggestion: str
+    user_action: bool | None = None
 
-# ===== MAIN SCHEMA =====
-class RegulatoryBackgroundSchema(BaseModel):
-    summary: RegulatorySummary
-    findings: List[RegulatoryFinding]
-    conflicts: List[RegulatoryConflict]
 
-# ===== DOCUMENT METADATA =====
+class RegulatoryBackgroundBase:
+    summary: RegulatoryBackgroundSummary
+    findings: list[RegulatoryBackgroundFinding]
+    conflicts: list[RegulatoryBackgroundConflict]
+
+
+class RegulatoryBackgroundSchema(BaseModel, RegulatoryBackgroundBase): ...
+
+
 class RegulatoryBackgroundDocumentResponse(BaseModel):
     document_name: str = Field(..., description="Name of the regulatory background document")
     file_name: str = Field(..., description="Name of the document")

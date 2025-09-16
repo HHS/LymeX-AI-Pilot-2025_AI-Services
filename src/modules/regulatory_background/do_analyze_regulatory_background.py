@@ -57,10 +57,19 @@ with `summary`, `findings`, and `conflicts` as described in the system instructi
 """
 
 
-async def do_analyze_regulatory_background(product_id: str) -> None:
+async def do_analyze_regulatory_background(product_id: str) -> bool:
     regulatory_background_documents = await get_regulatory_background_documents(
         product_id
     )
+
+    if not regulatory_background_documents:
+        logger.warning(
+            f"No regulatory background documents found for product {product_id}"
+        )
+        await RegulatoryBackground.find(
+            RegulatoryBackground.product_id == product_id
+        ).delete_many()
+        return False
 
     # Download each doc locally
     for doc in regulatory_background_documents:
@@ -94,3 +103,4 @@ async def do_analyze_regulatory_background(product_id: str) -> None:
     await RegulatoryBackground(**record).save()
 
     logger.info(f"Saved product profile for {product_id}")
+    return True

@@ -1,4 +1,5 @@
 from pathlib import Path
+from beanie import PydanticObjectId
 from loguru import logger
 from src.environment import environment
 from src.infrastructure.qdrant import embed_text
@@ -18,12 +19,17 @@ from src.modules.competitive_analysis.model import (
 )
 from src.modules.competitive_analysis.schema import CompetitiveAnalysisSource
 from src.modules.index_system_data.summarize_files import summarize_files
+from src.modules.product.model import Product
 from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
 from beanie.operators import In
 
 
 async def do_analyze_competitive_analysis(product_id: str) -> None:
+    product = await Product.find_one(Product.id == PydanticObjectId(product_id))
+    if not product:
+        logger.warning(f"Product not found for product_id={product_id}")
+        return
     logger.info(f"Starting competitive analysis for product_id={product_id}")
 
     product_profile_documents = await get_product_profile_documents(product_id)
@@ -45,6 +51,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     )
 
     system_competitor_documents = await download_system_product_competitive_documents(
+        product,
         q_vector,
         environment.competitive_analysis_number_of_system_search_documents,
     )
@@ -57,7 +64,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
         CompetitiveAnalysis.product_id == product_id
     ).to_list()
     exist_competitive_analysis_ids = [
-        analysis.competitive_analysis_detail_id
+        PydanticObjectId(analysis.competitive_analysis_detail_id)
         for analysis in exist_competitive_analysis
     ]
     if exist_competitive_analysis_ids:
@@ -69,6 +76,12 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
         )
     else:
         exist_competitive_analysis_details = []
+
+    exist_competitive_analysis_details = [
+        i
+        for i in exist_competitive_analysis_details
+        if i.product_simple_name != "Your Product"
+    ]
 
     to_simple_name_map = {
         doc.product_name: doc.product_simple_name
@@ -152,6 +165,7 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
     logger.info(
         f"Preparing {len(user_competitor_documents)} user competitor analysis tasks"
     )
+    logger.info(user_competitor_documents)
     user_tasks = [
         create_competitive_analysis(
             product_simple_name=comp_docs.product_name,
@@ -171,15 +185,6 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
         )
         for comp_docs in user_competitor_documents
     ]
-
-    # --- REMOVE FORMER COMPETITIVE ANALYSIS RECORDS ---
-
-    logger.info(
-        f"Removing existing competitive analysis records for product_id={product_id}"
-    )
-    await CompetitiveAnalysis.find(
-        CompetitiveAnalysis.product_id == product_id
-    ).delete_many()
     # --- RUN ALL TASKS IN PARALLEL ---
     logger.info("Running all competitive analysis tasks in parallel")
     competitive_analysis_details: list[
@@ -193,14 +198,46 @@ async def do_analyze_competitive_analysis(product_id: str) -> None:
         f"Completed {len(competitive_analysis_details)} competitive analysis tasks"
     )
 
-    competitive_analysis_list = [
-        CompetitiveAnalysis(
+    decided_cas = await CompetitiveAnalysis.find(
+        CompetitiveAnalysis.product_id == product_id,
+    ).to_list()
+    decided_cas = [doc for doc in decided_cas if doc.accepted is not None]
+    decided_ca_detail_ids = [doc.competitive_analysis_detail_id for doc in decided_cas]
+    decided_ca_detail_ids_map = {
+        doc.competitive_analysis_detail_id: doc for doc in decided_cas
+    }
+    decided_cads = await CompetitiveAnalysisDetail.find(
+        In(
+            CompetitiveAnalysisDetail.id,
+            [PydanticObjectId(i) for i in decided_ca_detail_ids],
+        )
+    ).to_list()
+    decided_cads_map = {
+        doc.product_name: decided_ca_detail_ids_map[str(doc.id)] for doc in decided_cads
+    }
+
+    competitive_analysis_list: list[CompetitiveAnalysis] = []
+    for doc in competitive_analysis_details:
+        ca = CompetitiveAnalysis(
             product_id=product_id,
             competitive_analysis_detail_id=str(doc.id),
-            is_self_analysis=doc.product_simple_name == "Your Product",
+            is_self_analysis=doc.data_type == "self_analysis",
         )
-        for doc in competitive_analysis_details
-    ]
+        if doc.product_name in decided_cads_map:
+            ca.accepted = decided_cads_map[doc.product_name].accepted
+            ca.accept_reject_reason = decided_cads_map[
+                doc.product_name
+            ].accept_reject_reason
+            ca.accept_reject_by = decided_cads_map[doc.product_name].accept_reject_by
+        competitive_analysis_list.append(ca)
+
+    logger.info(
+        f"Removing existing competitive analysis records for product_id={product_id}"
+    )
+    await CompetitiveAnalysis.find(
+        CompetitiveAnalysis.product_id == product_id
+    ).delete_many()
+
     await CompetitiveAnalysis.insert_many(competitive_analysis_list)
     logger.info("Inserted competitive analysis records into database")
 

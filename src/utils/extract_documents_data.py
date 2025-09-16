@@ -126,7 +126,7 @@ async def extract_documents_data(
         )
         logger.info("Run started with id {}", run.id)
 
-        for attempt in range(60):
+        for attempt in range(100):
             run = await client.beta.threads.runs.retrieve(
                 thread_id=thread.id, run_id=run.id
             )

@@ -1,6 +1,7 @@
-from typing import List, Optional, TypedDict
+from typing import Optional, TypedDict
 from uuid import uuid4
 
+from loguru import logger
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -15,6 +16,7 @@ from qdrant_client.models import (
 
 from src.environment import environment
 from src.infrastructure.openai import get_openai_client
+from src.modules.index_system_data.summarize_files import FileSummary
 
 client = QdrantClient(
     url=environment.qdrant_url,
@@ -38,28 +40,31 @@ except Exception as e:
         raise
 
 
-def embed_text(text: str) -> List[float]:
+async def embed_text(text: str) -> list[float]:
     """
     Embed the given text into a high-dimensional vector.
     """
     openai_client = get_openai_client()
-    resp = openai_client.embeddings.create(input=[text], model=EMBEDDING_MODEL)
+    resp = await openai_client.embeddings.create(input=[text], model=EMBEDDING_MODEL)
     # resp is a CreateEmbeddingResponse object, so access via attributes:
-    return resp.data[0].embedding  # List[float]
+    return resp.data[0].embedding  # list[float]
 
 
-def add_document(filename: str, summary: str) -> None:
+async def add_document(filename: str, summary: FileSummary) -> None:
     """
     Add a new document point with filename and summary.
     """
-    vector = embed_text(summary)
+    vector = await embed_text(summary.summary)
+    payload = {
+        "filename": filename,
+        "summary": summary.summary,
+        "product_name": summary.files[0].product_name if summary.files else "Unknown",
+    }
+    logger.info(f"Adding document {filename} with payload: {payload}")
     point = PointStruct(
         id=uuid4().int >> 64,
         vector=vector,
-        payload={
-            "filename": filename,
-            "summary": summary,
-        },
+        payload=payload,
     )
     client.upsert(
         collection_name="system_data",
@@ -86,7 +91,7 @@ class DocumentFilename(TypedDict):
     filename: Optional[str]
 
 
-def get_all_documents() -> List[DocumentFilename]:
+def get_all_documents() -> list[DocumentFilename]:
     """
     Returns a list of dicts with 'id' and 'filename' for all documents.
     """
@@ -95,9 +100,7 @@ def get_all_documents() -> List[DocumentFilename]:
         with_payload=True,
         with_vectors=False,
     )
-    print("============================")
-    print(result)
-    documents: List[DocumentFilename] = [
+    documents: list[DocumentFilename] = [
         {
             "id": str(point.id),
             "filename": point.payload.get("filename") if point.payload else None,
@@ -107,7 +110,7 @@ def get_all_documents() -> List[DocumentFilename]:
     return documents
 
 
-def get_by_filename(filename: str) -> List[PointStruct]:
+def get_by_filename(filename: str) -> list[PointStruct]:
     """
     Returns all PointStructs whose payload.filename exactly matches.
     """
@@ -120,14 +123,13 @@ def get_by_filename(filename: str) -> List[PointStruct]:
         with_payload=True,
         with_vector=True,
     )
-    return result  # List[PointStruct]
+    return result  # list[PointStruct]
 
 
-def search_similar(summary: str, top_k: int = 5) -> List[ScoredPoint]:
+def search_similar(q_vector: list[float], top_k: int = 5) -> list[ScoredPoint]:
     """
     Embeds the query summary and returns the top_k most similar points.
     """
-    q_vector = embed_text(summary)
     hits = client.search(
         collection_name="system_data",
         query_vector=q_vector,
@@ -135,4 +137,4 @@ def search_similar(summary: str, top_k: int = 5) -> List[ScoredPoint]:
         with_payload=True,
         with_vectors=False,  # <-- renamed here
     )
-    return hits  # List[ScoredPoint]
+    return hits  # list[ScoredPoint]

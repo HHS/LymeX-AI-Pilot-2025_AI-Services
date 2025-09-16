@@ -1,106 +1,56 @@
-import asyncio
-from datetime import datetime, timedelta
 from pathlib import Path
-
 from loguru import logger
-from openai import OpenAIError
+from pydantic import BaseModel
 
-from src.infrastructure.openai import get_openai_client
+from src.services.openai.extract_files_data import extract_files_data
 
 
-async def summarize_files(paths: list[Path], timeout: int = 300) -> str:
+class FileProductName(BaseModel):
+    file_name: str
+    product_name: str
+
+
+class FileSummary(BaseModel):
+    files: list[FileProductName]
+    summary: str
+
+
+async def summarize_files(paths: list[Path]) -> FileSummary:
     """
-    Upload all PDFs in `paths` to a single OpenAI assistant and return one concise paragraph
-    summarizing their collective purpose and key features.
-
-    Args:
-        paths: List of Paths to the PDFs.
-        timeout: Seconds to wait before timing out.
-
-    Returns:
-        A single-paragraph summary string covering all uploaded documents.
+    Upload all PDFs in `paths` and use extract_files_data to get a summary and per-file product names.
     """
-    client = get_openai_client()
-    uploaded_ids = []
+    if not paths:
+        return FileSummary(files=[], summary="No documents to summarize.")
 
-    # Upload every file
-    for path in paths:
-        logger.info(f"Uploading file: {path.name}")
-        with open(path, "rb") as f:
-            file_obj = client.files.create(file=f, purpose="assistants")
-        uploaded_ids.append(file_obj.id)
-        logger.info(f"Uploaded {path.name} as {file_obj.id}")
-
-    # Create a temporary assistant with combined-summary instructions
-    assistant = client.beta.assistants.create(
-        instructions=(
-            "You are an FDA subject-matter expert. For the attached PDF device form, "
-            "provide:\n"
-            "1) A concise 5-7 sentence summary focusing on the device’s overall purpose "
-            "and key functional features.\n"
-            "2) A list of 10–15 general, high-level keywords (avoid numeric values or overly "
-            "specific measurements) that capture the main concepts—these will be used to "
-            "search for similar devices."
-        ),
-        model="gpt-4o-mini",
-        tools=[{"type": "file_search"}],
+    # Define the system instruction and user question for the assistant
+    system_instruction = (
+        "You are an FDA subject-matter expert. For each attached PDF device form, "
+        "extract the product name and file name. Then, provide:\n"
+        "1. A list called 'files', with one object per file containing 'file_name' and 'product_name'.\n"
+        "2. A field called 'summary', which is a concise 5-7 sentence summary focusing on the devices’ overall purpose and key features.\n"
+        "Return your answer strictly as JSON matching the required schema."
     )
-    assistant_id = assistant.id
-    logger.info(f"Assistant created: {assistant_id}")
 
-    try:
-        # Start thread and send the request
-        thread = client.beta.threads.create()
-        thread_id = thread.id
-        attachments = [
-            {"file_id": fid, "tools": [{"type": "file_search"}]} for fid in uploaded_ids
-        ]
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=(
-                "Please read all attached PDFs and respond with one concise paragraph summarizing "
-                "their collective purpose and main functional features."
-            ),
-            attachments=attachments,
-        )
-        logger.info(
-            f"Thread {thread_id} initiated with {len(uploaded_ids)} attachments."
-        )
+    user_question = (
+        "Read all attached PDFs and respond with a JSON including: "
+        "1) 'files' (list of file_name and extracted product_name per file), "
+        "2) 'summary' (overall combined summary)."
+    )
 
-        # Run the assistant and poll for completion
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id, assistant_id=assistant_id
-        )
-        run_id = run.id
-        deadline = datetime.utcnow() + timedelta(seconds=timeout)
-        while datetime.utcnow() < deadline:
-            status = client.beta.threads.runs.retrieve(
-                thread_id=thread_id, run_id=run_id
-            ).status
-            if status == "completed":
-                break
-            if status == "failed":
-                raise OpenAIError("Assistant run failed")
-            await asyncio.sleep(2)
-        else:
-            raise OpenAIError("Assistant run timed out")
+    # Call extract_files_data, which handles upload, query, cleanup, and schema validation
+    result = await extract_files_data(
+        file_paths=paths,
+        system_instruction=system_instruction,
+        user_question=user_question,
+        model_class=FileSummary,
+    )
 
-        # Retrieve and return the single-paragraph response
-        messages = client.beta.threads.messages.list(thread_id=thread_id).data
-        response = next(
-            (m.content[0].text.value for m in messages if m.role == "assistant"), None
-        )
-        if not response:
-            raise OpenAIError("No response from assistant")
-        summary = response.strip()
-
-    finally:
-        # Cleanup all resources
-        for fid in uploaded_ids:
-            client.files.delete(fid)
-        client.beta.assistants.delete(assistant_id)
-        logger.info("Cleanup: deleted all files and assistant.")
+    # Map extract result to your FileSummary domain model
+    files = [
+        FileProductName(file_name=f.file_name, product_name=f.product_name)
+        for f in result.files
+    ]
+    summary = result.summary
 
     logger.info(f"Final summary for [{', '.join([p.name for p in paths])}]: {summary}")
-    return summary
+    return FileSummary(files=files, summary=summary)

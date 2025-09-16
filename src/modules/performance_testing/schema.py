@@ -97,9 +97,8 @@ class PerformanceTestingSection(str, enum.Enum):
 
 class PerfTestingDocumentResponse(BaseModel):
     """
-    Tiny DTO used by storage.py to return a single presigned URL.
+    Tiny DTO used by storage.py to return a presigned URL along with metadata.
     """
-
     url: str
 
 

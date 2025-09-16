@@ -9,7 +9,7 @@ from src.modules.competitive_analysis.do_analyze_competitive_analysis import (
 async def analyze_competitive_analysis(product_id: str) -> None:
     lock = redis_client.lock(
         f"NOIS2:Background:AnalyzeCompetitiveAnalysis:AnalyzeLock:{product_id}",
-        timeout=60,
+        timeout=15,
     )
     if not await lock.acquire(blocking=False):
         logger.warning(f"Analysis already running for {product_id}")
@@ -22,11 +22,11 @@ async def analyze_competitive_analysis(product_id: str) -> None:
             await do_analyze_competitive_analysis(product_id)
             await progress.complete()
         except Exception as exc:
-            logger.error(f"Error analyzing {product_id}: {exc}")
+            logger.exception(f"Error analyzing {product_id}: {exc}")
             await progress.err()
 
     except Exception as exc:
-        logger.error(f"Error analyzing {product_id}: {exc}")
+        logger.exception(f"Error analyzing {product_id}: {exc}")
         raise
 
     finally:

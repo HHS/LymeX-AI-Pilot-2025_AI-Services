@@ -10,5 +10,5 @@ async def upload_via_url(client, url: str, filename: str) -> str:
     buf = io.BytesIO(r.content)
     buf.name = filename
     uploaded = client.files.create(file=buf, purpose="assistants")
-    logger.debug("Uploaded {} → {}", filename, uploaded.id)
+    logger.info("Uploaded {} → {}", filename, uploaded.id)
     return uploaded.id

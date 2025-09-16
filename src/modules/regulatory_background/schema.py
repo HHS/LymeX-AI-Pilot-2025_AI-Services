@@ -1,32 +1,53 @@
 from pydantic import BaseModel, Field
 
 
-class RegulatoryBackgroundContent(BaseModel):
-    title: str = Field(..., description="Title of the regulatory background content")
-    content: str = Field(..., description="Content of the regulatory background")
-    suggestion: str = Field(..., description="Suggestion for the regulatory background")
+class RegulatoryBackgroundHighlight(BaseModel):
+    title: str
+    detail: str
+
+
+class RegulatoryBackgroundSummary(BaseModel):
+    title: str
+    description: str
+    highlights: list[RegulatoryBackgroundHighlight]
+
+
+class RegulatoryBackgroundFinding(BaseModel):
+    status: str
+    field: str
+    label: str
+    value: str
+    source_file: str | None
+    source_page: int | None
+    suggestion: str | None
+    tooltip: str | None
+    confidence_score: int | None
+    user_action: bool | None
+
+
+class RegulatoryBackgroundConflict(BaseModel):
+    field: str
+    phrase: str
+    conflict: str
+    source: str
+    suggestion: str
+    user_action: bool | None = None
 
 
 class RegulatoryBackgroundBase:
-    predicate_device_reference: RegulatoryBackgroundContent
-    clinical_trial_requirements: RegulatoryBackgroundContent
-    risk_classification: RegulatoryBackgroundContent
-    regulatory_submission_history: RegulatoryBackgroundContent
-    intended_use_statement: RegulatoryBackgroundContent
+    summary: RegulatoryBackgroundSummary
+    findings: list[RegulatoryBackgroundFinding]
+    conflicts: list[RegulatoryBackgroundConflict]
 
 
 class RegulatoryBackgroundSchema(BaseModel, RegulatoryBackgroundBase): ...
 
 
 class RegulatoryBackgroundDocumentResponse(BaseModel):
-    document_name: str = Field(
-        ..., description="Name of the regulatory background document"
-    )
+    document_name: str = Field(..., description="Name of the regulatory background document")
     file_name: str = Field(..., description="Name of the document")
     url: str = Field(..., description="URL to access the document")
-    uploaded_at: str = Field(
-        ..., description="Date and time when the document was uploaded"
-    )
+    uploaded_at: str = Field(..., description="Date and time when the document was uploaded")
     author: str = Field(..., description="Author of the document")
     size: int = Field(..., description="Size of the document in bytes")
     key: str = Field(..., description="Key of the document in the storage system")

@@ -1,10 +1,13 @@
 from pathlib import Path
+
+from loguru import logger
 from src.modules.competitive_analysis.model import CompetitiveAnalysisDetail
 from src.modules.competitive_analysis.schema import (
     CompetitiveAnalysisDetailSchema,
     CompetitiveAnalysisSource,
 )
 from src.services.openai.extract_files_data import extract_files_data
+from src.utils.hash_document_paths import hash_document_paths
 
 
 system_instruction = """
@@ -36,19 +39,60 @@ async def create_competitive_analysis(
     confidence_score: float,
     use_system_data: bool,
     sources: list[CompetitiveAnalysisSource],
+    data_type: str,
 ) -> CompetitiveAnalysisDetail:
-    result = await extract_files_data(
-        file_paths=document_paths,
-        system_instruction=system_instruction,
-        user_question=user_question,
-        model_class=CompetitiveAnalysisDetailSchema,
+    document_hash = hash_document_paths(document_paths)
+    existing_detail = await CompetitiveAnalysisDetail.find_one(
+        CompetitiveAnalysisDetail.document_hash == document_hash
     )
+    if existing_detail:
+        logger.info(
+            f"CompetitiveAnalysisDetail already exists for document_hash={document_hash}, returning existing detail."
+        )
+        logger.info(f"New Sources: {sources}")
+        cloned_detail_dict = {
+            **existing_detail.model_dump(),
+            "document_hash": document_hash,
+            "document_names": [path.name for path in document_paths],
+            "product_simple_name": product_simple_name,
+            "confidence_score": confidence_score,
+            "sources": sources,
+            "is_ai_generated": True,
+            "use_system_data": use_system_data,
+            "data_type": data_type,
+        }
+        # remove id from cloned_detail_dict
+        cloned_detail_dict.pop("id", None)
+        logger.info(f"Cloned Detail Dict: {cloned_detail_dict}")
+        cloned_detail = CompetitiveAnalysisDetail(**cloned_detail_dict)
+        await cloned_detail.save()
+        return cloned_detail
+
+    logger.info(
+        f"Creating CompetitiveAnalysisDetail for product_simple_name={product_simple_name}, document_hash={document_hash}"
+    )
+    for attempt in range(3):
+        try:
+            result = await extract_files_data(
+                file_paths=document_paths,
+                system_instruction=system_instruction,
+                user_question=user_question,
+                model_class=CompetitiveAnalysisDetailSchema,
+            )
+            break
+        except Exception as e:
+            logger.warning(f"Attempt {attempt + 1} failed with error: {e}")
+            if attempt == 2:
+                raise
     competitive_analysis_detail = CompetitiveAnalysisDetail(
+        **result.model_dump(),
+        document_hash=document_hash,
+        document_names=[path.name for path in document_paths],
         product_simple_name=product_simple_name,
         confidence_score=confidence_score,
         sources=sources,
         is_ai_generated=True,
         use_system_data=use_system_data,
-        **result.model_dump(),
+        data_type=data_type,
     )
     return await competitive_analysis_detail.save()

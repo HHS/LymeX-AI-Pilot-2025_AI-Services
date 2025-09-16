@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Dict, List
 from beanie import Document
 from pydantic import Field
 
@@ -13,6 +12,7 @@ class PerformanceTestPlan(Document):
 
     # required tests to be performed by user
     tests: list[PerformanceTestCard] = Field(default_factory=list)
+    rejected_tests: list[PerformanceTestCard] = Field(default_factory=list)
 
     rationale: str | None = None  # optional narrative from the planner LLM
 

@@ -4,9 +4,7 @@ import mimetypes
 from loguru import logger
 from src.infrastructure.minio import (
     generate_get_object_presigned_url,
-    generate_put_object_presigned_url,
     list_objects,
-    remove_object,
 )
 from src.modules.regulatory_background.schema import (
     RegulatoryBackgroundDocumentResponse,
@@ -60,28 +58,6 @@ async def get_regulatory_background_documents(
     ]
     documents = await asyncio.gather(*documents)
     return documents
-
-
-async def get_upload_regulatory_background_document_url(
-    product_id: str,
-    background_document_info: BackgroundDocumentInfo,
-) -> str:
-    extension = background_document_info["file_name"].split(".")[-1]
-    document_name = encode_background_document_info(background_document_info)
-    document_name = f"{document_name}.{extension}"
-    folder = get_regulatory_background_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    url = await generate_put_object_presigned_url(object_name)
-    return url
-
-
-async def delete_regulatory_background_document(
-    product_id: str,
-    document_name: str,
-) -> None:
-    folder = get_regulatory_background_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    await remove_object(object_name)
 
 
 # ================ FOLDERS ====================

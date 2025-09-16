@@ -69,18 +69,23 @@ async def do_analyze_product_profile(product_id: str) -> None:
     )
 
     # Save profile
+    existing_profile = await ProductProfile.find_one(
+        ProductProfile.product_id == product_id
+    )
+    if existing_profile:
+        description = existing_profile.description
+    else:
+        description = result.description
     await ProductProfile.find(ProductProfile.product_id == product_id).delete_many()
-    record = {**result.model_dump(), "product_id": product_id}
-    # Ensure uppercase product_code before save
-    if "product_code" in record:
-        record["product_code"] = await generate_unique_product_code()
-    
-    # Ensure nested regulatory_classifications uses the same code
+
+    record = {
+        **result.model_dump(),
+        "description": description,
+        "product_id": product_id,
+    }
     if "regulatory_classifications" in record:
         for item in record["regulatory_classifications"]:
             item["product_code"] = record["product_code"]
-
-    
     await ProductProfile(**record).save()
 
     logger.info(f"Saved product profile for {product_id}")

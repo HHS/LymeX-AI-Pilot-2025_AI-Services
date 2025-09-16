@@ -9,7 +9,7 @@ from src.modules.product_profile.do_analyze_product_profile import (
 
 async def analyze_product_profile(product_id: str) -> None:
     lock = redis_client.lock(
-        f"NOIS2:Background:AnalyzeProductProfile:AnalyzeLock:{product_id}", timeout=60
+        f"NOIS2:Background:AnalyzeProductProfile:AnalyzeLock:{product_id}", timeout=15
     )
     if not await lock.acquire(blocking=False):
         logger.warning(f"Analysis already running for {product_id}")
@@ -21,13 +21,13 @@ async def analyze_product_profile(product_id: str) -> None:
         try:
             await do_analyze_product_profile(product_id)
         except Exception as exc:
-            logger.error(f"Error analyzing {product_id}: {exc}")
+            logger.exception(f"Error analyzing {product_id}: {exc}")
             raise
         finally:
             await progress.complete()
 
     except Exception as exc:
-        logger.error(f"Error analyzing {product_id}: {exc}")
+        logger.exception(f"Error analyzing {product_id}: {exc}")
         await progress.err()
         raise
 

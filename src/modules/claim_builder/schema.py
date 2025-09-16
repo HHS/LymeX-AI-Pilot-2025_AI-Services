@@ -25,6 +25,10 @@ class Issue(BaseModel):
     description: str = Field(..., description="Why this is an issue / change request")
     severity: IssueSeverity = Field(..., description="LOW | MEDIUM | CRITICAL")
     suggested_fix: str = Field(..., description="AI‑recommended wording or action")
+    accepted: bool | None = Field(
+        None,  # None → undecided, True → user accepted, False → rejected
+        description="Whether the user accepted this fix"
+    )
 
 
 class IFUSource(BaseModel):
@@ -117,4 +121,7 @@ class Draft(BaseModel):
     )
     reject_message: str | None = Field(
         None, description="Message provided by the user if the draft is rejected"
+    )
+    user_updated: bool = Field(
+        False, description="Indicates if the draft has been updated by the user"
     )

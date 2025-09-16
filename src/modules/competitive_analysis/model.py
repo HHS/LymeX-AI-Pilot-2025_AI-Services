@@ -1,41 +1,25 @@
 from datetime import datetime
 
 from beanie import Document, PydanticObjectId
-
 from src.modules.competitive_analysis.schema import (
-    CompetitiveAnalysisCompareSummary,
-    CompetitiveAnalysisDetail,
-    CompetitiveDeviceAnalysisKeyDifferenceResponse,
+    CompetitiveAnalysisDetailBase,
+    CompetitiveAnalysisDetailResponse,
+    CompetitiveAnalysisDetailSchema,
+    CompetitiveAnalysisSource,
 )
+from src.modules.product.model import Product
+from src.modules.product_profile.model import ProductProfile
 from src.modules.product_profile.schema import Feature, Performance
 
 
 class CompetitiveAnalysis(Document):
-    reference_product_id: str
-    product_name: str
-    category: str
-    regulatory_pathway: str
-    clinical_study: str
-    fda_approved: bool
-    ce_marked: bool
-    device_ifu_description: str
-    key_differences: list[CompetitiveDeviceAnalysisKeyDifferenceResponse]
-    recommendations: list[str]
-    features: list[Feature]
-    claims: list[str]
-    reference_number: str
-    confidence_score: float
-    sources: list[str]
-    performance: Performance
-    price: int
-    your_product_summary: CompetitiveAnalysisCompareSummary
-    competitor_summary: CompetitiveAnalysisCompareSummary
-    instructions: list[str]
-    type_of_use: str
-    your_product: CompetitiveAnalysisDetail
-    competitor: CompetitiveAnalysisDetail
-    is_ai_generated: bool = False
-    use_system_data: bool = False
+    product_id: str
+    competitive_analysis_detail_id: str
+    is_self_analysis: bool
+
+    accepted: bool | None = None
+    accept_reject_reason: str | None = None
+    accept_reject_by: str | None = None
 
     class Settings:
         name = "competitive_analysis"
@@ -56,8 +40,27 @@ class CompetitiveAnalysis1(Document):
         }
 
 
+class CompetitiveAnalysisDetail(Document, CompetitiveAnalysisDetailBase):
+    document_hash: str
+    document_names: list[str]
+    product_simple_name: str
+    confidence_score: float
+    sources: list[CompetitiveAnalysisSource]
+    is_ai_generated: bool
+    use_system_data: bool
+    data_type: str
+
+    class Settings:
+        name = "competitive_analysis_detail"
+
+    class Config:
+        json_encoders = {
+            PydanticObjectId: str,
+        }
+
+
 class AnalyzeCompetitiveAnalysisProgress(Document):
-    reference_product_id: str
+    product_id: str
     total_files: int
     processed_files: int
     updated_at: datetime
@@ -69,3 +72,17 @@ class AnalyzeCompetitiveAnalysisProgress(Document):
         json_encoders = {
             PydanticObjectId: str,
         }
+
+
+def to_competitive_analysis_detail_response(
+    ca: CompetitiveAnalysis,
+    detail: CompetitiveAnalysisDetail,
+) -> CompetitiveAnalysisDetailResponse:
+    return CompetitiveAnalysisDetailResponse(
+        id=str(ca.id),
+        product_id=ca.product_id,
+        is_self_analysis=ca.is_self_analysis,
+        details=CompetitiveAnalysisDetailSchema(
+            **detail.model_dump(),
+        ),
+    )

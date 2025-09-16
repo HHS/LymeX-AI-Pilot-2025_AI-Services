@@ -12,12 +12,11 @@ from src.services.openai.upload_files import upload_files
 T = TypeVar("T", bound=BaseModel)
 
 
-async def extract_files_data(
+async def extract_competitive_data(
     file_paths: list[Path],
     system_instruction: str,
-    user_question: str,
     model_class: type[T],
-) -> T:
+):
     openai_client = get_openai_client()
     logger.info("Extracting data from files: {}", file_paths)
     if not file_paths:
@@ -30,7 +29,6 @@ async def extract_files_data(
     logger.info("Files uploaded successfully: {}", [file.id for file in uploaded_files])
     logger.info("Creating OpenAI response with system instruction and user question.")
     logger.info(f"System instruction: {system_instruction}")
-    logger.info(f"User question: {user_question}")
     try:
         response = await openai_client.responses.parse(
             model=environment.openai_model,
@@ -44,11 +42,12 @@ async def extract_files_data(
                         },
                         {
                             "type": "input_text",
+                            "text": """Ensure that all fields are included and that their data types match the defined schema.
 
-                            "text": """
-Ensure that all fields are included and that their data types match the defined schema.
 Each value should accurately reflect the meaning described in the corresponding field's comment.
+
 Only extract information explicitly found in the document—do not infer, assume, or generate content that is not present.
+
 If a field is missing or the data is unavailable, use the exact string "Not Available".
 """,
                         },
@@ -57,10 +56,6 @@ If a field is missing or the data is unavailable, use the exact string "Not Avai
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "input_text",
-                            "text": user_question,
-                        },
                         *[
                             {
                                 "type": "input_file",

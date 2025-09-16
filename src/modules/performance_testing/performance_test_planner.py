@@ -14,22 +14,87 @@ Public API:
 
 from __future__ import annotations
 
-import asyncio, json
+import asyncio
+import json
 from datetime import datetime
 from typing import Dict, List
+import re
 
 from loguru import logger
 from fastapi import HTTPException
 
 from src.environment import environment
-from src.infrastructure.openai import get_openai_client
+from src.infrastructure.openai import get_openai_client_sync
 from src.modules.performance_testing.const import TEST_CATALOGUE
 from src.modules.performance_testing.plan_model import PerformanceTestPlan
 from src.modules.product_profile.model import ProductProfile  # for rule engine
 
+from src.modules.performance_testing.schema import (
+    PerformanceTestCard,
+    PerformanceTestingConfidentLevel,
+    RiskLevel,
+    TestStatus,
+    PerformanceTestingReference,
+    PerformanceTestingAssociatedStandard,
+)
+
 # we will reuse the storage layer that already exists for Product-Profile
-from src.modules.product_profile.storage  import get_product_profile_documents
+from src.modules.product_profile.storage import get_product_profile_documents
 from src.utils.upload_helpers import upload_via_url
+from src.utils.parse_openai_json import parse_openai_json  # tolerant helper
+
+
+# ───────────────── tolerant JSON loader ────────────────────────
+def _robust_json(txt: str) -> dict:
+    """
+    1. try plain json.loads()
+    2. strip code fences / pick first balanced {...}
+    3. final fallback: parse_openai_json()  (very forgiving)
+    """
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        # common pattern: ```json … ```
+        if txt.startswith("```"):
+            txt = txt.strip("` \n")
+            if txt.lower().startswith("json"):
+                txt = txt[4:].lstrip()
+        # grab the first {...} block
+        m = re.search(r"\{.*\}", txt, flags=re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+        # last resort – very tolerant but slower
+        return parse_openai_json(txt)
+
+
+# ───────────────── tolerant JSON loader ────────────────────────
+def _robust_json(txt: str) -> dict:
+    """
+    1. try plain json.loads()
+    2. strip code fences / pick first balanced {...}
+    3. final fallback: parse_openai_json()  (very forgiving)
+    """
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        # common pattern: ```json … ```
+        if txt.startswith("```"):
+            txt = txt.strip("` \n")
+            if txt.lower().startswith("json"):
+                txt = txt[4:].lstrip()
+        # grab the first {...} block
+        m = re.search(r"\{.*\}", txt, flags=re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+        # last resort – very tolerant but slower
+        return parse_openai_json(txt)
+
 
 # ─────────────────────────────────────────────────────────────
 # 1.  Helper: simple rule-engine (cheap heuristics first)
@@ -41,7 +106,7 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 
     def add(section: str, *codes: str):
         out.setdefault(section, []).extend(codes)
-    
+
     add("analytical", "precision", "linearity", "sensitivity")
     add("clinical", "clin_sens_spec")
     if getattr(profile, "contains_software", False):
@@ -58,12 +123,12 @@ def _rule_engine(profile: ProductProfile) -> Dict[str, List[str]]:
 # ─────────────────────────────────────────────────────────────
 # 2.  Helper: poll assistant until function JSON is returned
 # ─────────────────────────────────────────────────────────────
-async def _poll_function_json(client, thread_id: str, run_id: str,
-                              function_name: str) -> dict:
+async def _poll_function_json(
+    client, thread_id: str, run_id: str, function_name: str
+) -> dict:
     """Wait until the assistant calls *function_name* and return its arguments."""
     for _ in range(120):
-        run = client.beta.threads.runs.retrieve(thread_id=thread_id,
-                                                run_id=run_id)
+        run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run_id)
 
         if run.status == "requires_action":
             tool_calls = run.required_action.submit_tool_outputs.tool_calls
@@ -74,8 +139,10 @@ async def _poll_function_json(client, thread_id: str, run_id: str,
             for tc in tool_calls:
                 if tc.type == "function" and tc.function.name == function_name:
                     # --- capture the arguments we actually care about
+                    # raw = tc.function.arguments
+                    # fn_args = json.loads(raw) if isinstance(raw, str) else raw
                     raw = tc.function.arguments
-                    fn_args = json.loads(raw) if isinstance(raw, str) else raw
+                    fn_args = _robust_json(raw) if isinstance(raw, str) else raw
                     outs.append({"tool_call_id": tc.id, "output": "received"})
 
                 elif tc.type == "file_search":
@@ -107,55 +174,130 @@ async def _poll_function_json(client, thread_id: str, run_id: str,
 # ─────────────────────────────────────────────────────────────
 # 3.  Public entry point
 # ─────────────────────────────────────────────────────────────
-async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,) -> None:
+async def create_plan(
+    product_id: str,
+    profile_pdf_ids: list[str] | None = None,
+) -> None:
     """Analyse the Product-Profile PDF + rule engine → store PerformanceTestPlan.
 
     1. If `profile_pdf_ids` are supplied (fast-path from UI) - use them.
     2. Otherwise pull *all* Product-Profile PDFs from MinIO, upload to
        OpenAI, and use those uploads.
-        
+
     """
 
     logger.info("🛠  Generating test-plan for {}", product_id)
 
     # ── Fetch profile for rule-engine (if you keep rules) ──
-    profile = await ProductProfile.find_one({"product_id": product_id})
-    rule_tests = _rule_engine(profile) if profile else {}
+    sleep_time = 5
+    max_retries = 100  # 500 seconds max
+    for _ in range(max_retries):
+        profile = await ProductProfile.find_one({"product_id": product_id})
+        if profile:
+            break
+        logger.warning("⏳  Waiting for Product-Profile to be available...")
+        await asyncio.sleep(sleep_time)
+    else:
+        raise HTTPException(404, "Product-Profile not found for this product")
 
+    rule_tests = _rule_engine(profile)
+
+    function_parameters = {
+        "type": "object",
+        "properties": {
+            "tests": {
+                "type": "array",
+                "minItems": 5,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "section_key": {"type": "string"},
+                        "test_code": {"type": "string"},
+                        "risk_level": {
+                            "type": "string",
+                            "enum": ["Low", "Medium", "High"],
+                        },
+                        "ai_confident": {"type": "integer"},
+                        "ai_rationale": {"type": "string"},
+                        "references": {  # NEW ▼
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "url": {"type": "string"},
+                                    "description": {"type": "string"},
+                                },
+                                "required": ["title", "url", "description"],
+                            },
+                        },
+                        "associated_standards": {  # NEW ▼
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "standard_name": {"type": "string"},
+                                    "version": {"type": "string"},
+                                    "url": {"type": "string"},
+                                    "description": {"type": "string"},
+                                },
+                                "required": ["name", "standard_name", "url"],
+                            },
+                        },
+                    },
+                    "required": [
+                        "section_key",
+                        "test_code",
+                        "ai_rationale",
+                        "references",
+                        "associated_standards",
+                    ],
+                },
+            },
+            "rejected_tests": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "section_key": {"type": "string"},
+                        "test_code": {"type": "string"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["section_key", "test_code", "reason"],
+                },
+            },
+            "rationale": {"type": "string"},
+        },
+        "required": ["tests"],
+    }
     # ── Build assistant dynamically from TEST_CATALOGUE ────
-    client = get_openai_client()
+    client = get_openai_client_sync()
 
     assistant = client.beta.assistants.create(
         name="Performance Test Planner",
         model=environment.openai_model,
         instructions=(
-             "You are an FDA regulatory strategist.  ALWAYS respond by calling the "
-        "function **return_test_plan** with *one* argument named "
-        "`required_tests` that maps section keys to arrays of canonical test "
-        "codes.  Optionally include a `rationale` string.  Do **not** add any "
-        "extra keys or free-text answers.\n\n"
-        "Allowed section keys and test codes:\n"
-        + json.dumps(TEST_CATALOGUE, indent=2)
+            "You are an FDA regulatory strategist. Always respond by calling the "
+            "function **return_test_plan**.Return tests (accepted) and rejected_tests (not suggested).\n"
+            "Iterate every section and every test in the catalogue shown below.\n"
+            "Put each test in exactly one of the two arrays.\n"
+            "Remember, if any test under a given section is not suggested as a test (accepted), then it should be a part of the rejected_tests"
+            "For rejected_tests, provide a short reason tied to the Product Profile evidence.\n"
+            "If evidence is missing, say ‘insufficient evidence in profile’.\n"
+            "Please consider all the sections and the tests within them from the test catalogue below: \n"
+            + json.dumps(TEST_CATALOGUE, indent=2)  # keeps catalogue in‑sync
         ),
         tools=[
             {"type": "file_search"},
-            {"type": "function", "function": {
-                "name": "return_test_plan",
-                "description": "Return required performance tests.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "required_tests": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "array", "items": {"type": "string"}
-                            }
-                        },
-                        "rationale": {"type": "string"}
-                    },
-                    "required": ["required_tests"]
+            {
+                "type": "function",
+                "function": {
+                    "name": "return_test_plan",
+                    "description": "Return the flat list of required tests.",
+                    "parameters": function_parameters,
                 },
-            }},
+            },
         ],
     )
 
@@ -183,44 +325,136 @@ async def create_plan(product_id: str, profile_pdf_ids: list[str] | None = None,
         role="user",
         content="Which *individual* performance tests are mandatory?",
         attachments=[
-                    {"file_id": fid,
-                      "tools":[{"type":"file_search"}]}
-                    for fid in profile_pdf_ids#[:10]  
-                    ],
+            {"file_id": fid, "tools": [{"type": "file_search"}]}
+            for fid in profile_pdf_ids  # [:10]
+        ],
     )
 
-    run = client.beta.threads.runs.create(thread_id=thread.id,
-                                          assistant_id=assistant.id)
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id, assistant_id=assistant.id
+    )
 
-    llm_out = await _poll_function_json(client, thread.id, run.id,
-                                        "return_test_plan")
+    llm_out = await _poll_function_json(client, thread.id, run.id, "return_test_plan")
     # debugging
-    logger.debug("🔍 Raw planner output:\n{}",
-             json.dumps(llm_out, indent=2, ensure_ascii=False))
-    
-    llm_tests: Dict[str, List[str]] = llm_out["required_tests"]
+    logger.info(
+        "🔍 Raw planner output:\n{}", json.dumps(llm_out, indent=2, ensure_ascii=False)
+    )
+
+    """llm_tests: Dict[str, List[str]] = {}
+    for item in llm_out["tests"]:
+        llm_tests.setdefault(item["section_key"], []).append(item["test_code"])"""
     rationale: str | None = llm_out.get("rationale")
 
-    # ── Merge rule-engine & LLM (union) ─────────────────────
+    # ── collect extra info per (section, code) ─────────────────────────────
+    extras: dict[tuple[str, str], dict] = {}
+    llm_tests: Dict[str, List[str]] = {}
+    for item in llm_out["tests"]:
+        sec, code = item["section_key"], item["test_code"]
+        llm_tests.setdefault(sec, []).append(code)
+        extras[(sec, code)] = item  # keep full object for later
+
+    # ── Merge rule‑engine & LLM (union) ──────────────────────
     merged: Dict[str, List[str]] = {}
-    for sec, tests in TEST_CATALOGUE.items():
-        merged[sec] = sorted(
-            set(rule_tests.get(sec, [])) | set(llm_tests.get(sec, []))
+    for section, all_tests in TEST_CATALOGUE.items():
+        merged[section] = sorted(
+            set(rule_tests.get(section, [])) | set(llm_tests.get(section, []))
         )
 
-    # ── Save / replace plan in DB ───────────────────────────
-    """await PerformanceTestPlan.find_one(
-        {"product_id": product_id}).delete()  # idempotent"""
-    existing_doc = await PerformanceTestPlan.find_one({"product_id": product_id})
-    if existing_doc:                       # None if no previous plan
-        await existing_doc.delete()        # async method on the document
-    
+    # Parse LLM rejections (may be missing if older assistants)
+    llm_rejected = llm_out.get("rejected_tests", []) or []
+    rej_set = {(r["section_key"], r["test_code"]) for r in llm_rejected}
+
+    # Build a set of (section, code) that ended up accepted
+    merged_set = {(sec, code) for sec, codes in merged.items() for code in codes}
+
+    # Keep only rejections that are NOT in the final plan
+    effective_rejected = [
+        r for r in llm_rejected if (r["section_key"], r["test_code"]) not in merged_set
+    ]
+
+    rejected_tests_cards: list[PerformanceTestCard] = []
+    for r in effective_rejected:
+        sec, code, reason = r["section_key"], r["test_code"], r["reason"]
+        rejected_tests_cards.append(
+            PerformanceTestCard(
+                section_key=sec,
+                test_code=code,
+                product_id=product_id,
+                test_description=TEST_CATALOGUE[sec][code],
+                status=TestStatus.REJECTED,
+                rejected_justification=reason,
+                ai_rejected=True,
+            )
+        )
+
+    # ── Convert to list[PerformanceTestCard] ─────────────────
+    cards: list[PerformanceTestCard] = []
+    for section, codes in merged.items():
+        for code in codes:
+            info = extras.get((section, code), {})
+
+            def _ensure_list(x):
+                if not x:
+                    return []
+                if isinstance(x, list):
+                    return x
+                # treat "a, b; c" → ["a", "b", "c"]
+                clean = re.sub(r"【.*?】", "", str(x))
+                return [s.strip() for s in re.split(r"[;,]", clean) if s.strip()]
+
+            # convert raw strings / dicts → Pydantic objects
+            ref_objs = [
+                PerformanceTestingReference(**r)
+                if isinstance(r, dict)
+                else PerformanceTestingReference(title=r)
+                for r in _ensure_list(info.get("references"))
+            ]
+
+            std_objs = [
+                PerformanceTestingAssociatedStandard(**s)
+                if isinstance(s, dict)
+                else PerformanceTestingAssociatedStandard(name=s)
+                for s in _ensure_list(info.get("associated_standards"))
+            ]
+
+            cards.append(
+                PerformanceTestCard(
+                    # ── mandatory identifiers ────────────────────────
+                    section_key=section,
+                    test_code=code,
+                    # ── descriptive meta‑data ────────────────────────
+                    product_id=product_id,
+                    # test_name     = code.replace("_", " ").title(),
+                    test_description=TEST_CATALOGUE[section][code],
+                    # ── workflow defaults ────────────────────────────
+                    status=TestStatus.SUGGESTED,
+                    risk_level=RiskLevel.MEDIUM,
+                    ai_confident=None,
+                    confident_level=PerformanceTestingConfidentLevel.LOW,
+                    # ── LLM‑supplied meta ─────────────────────────────
+                    ai_rationale=info.get("ai_rationale"),
+                    references=ref_objs or None,
+                    associated_standards=std_objs or None,
+                    ai_rejected=False,
+                )
+            )
+
+    # ── Upsert into Mongo ────────────────────────────────────
+    if old := await PerformanceTestPlan.find_one({"product_id": product_id}):
+        # import json, pprint
+        logger.warning(
+            "Existing plan for %s →\n%s",
+            product_id,
+            json.dumps(old.model_dump(), indent=2, default=str),
+        )
+        await old.delete()
+
     await PerformanceTestPlan(
         product_id=product_id,
-        required_tests=merged,
+        tests=[*cards, *rejected_tests_cards],
+        rejected_tests=rejected_tests_cards,
         rationale=rationale,
-        updated_at=datetime.utcnow()
+        updated_at=datetime.utcnow(),
     ).insert()
 
-    logger.success("🎯 Test-plan stored with {} total tests",
-                   sum(len(v) for v in merged.values()))
+    logger.success("Test‑plan stored with {} cards", len(cards))

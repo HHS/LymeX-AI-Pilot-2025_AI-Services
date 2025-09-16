@@ -1,12 +1,9 @@
-import asyncio
 from typing import TypedDict
 import mimetypes
 from loguru import logger
 from src.infrastructure.minio import (
     generate_get_object_presigned_url,
-    generate_put_object_presigned_url,
     list_objects,
-    remove_object,
 )
 from src.modules.competitive_analysis.schema import (
     CompetitiveAnalysisDocumentResponse,
@@ -16,6 +13,9 @@ import base64
 import fastavro
 import io
 from minio.datatypes import Object
+
+from src.utils.async_gather_with_max_concurrent import async_gather_with_max_concurrent
+from src.utils.download_minio_files import download_minio_file
 
 
 class AnalysisDocumentInfo(TypedDict):
@@ -30,10 +30,14 @@ async def analyze_competitive_analysis_document(
     document_name = obj.object_name.split("/")[-1]
     analysis_document_info = analyze_analysis_document_info(document_name.split(".")[0])
     file_name = analysis_document_info["file_name"]
+    url = await generate_get_object_presigned_url(obj.object_name)
+    path = await download_minio_file(obj.object_name)
+    path.rename(path.parent / file_name)
+    path = path.parent / file_name
     document = CompetitiveAnalysisDocumentResponse(
         document_name=document_name,
         file_name=file_name,
-        url=await generate_get_object_presigned_url(obj.object_name),
+        url=url,
         competitor_name=analysis_document_info["competitor_name"],
         uploaded_at=obj.last_modified.isoformat(),
         author=analysis_document_info["author"],
@@ -41,6 +45,8 @@ async def analyze_competitive_analysis_document(
         or mimetypes.guess_type(file_name)[0]
         or "application/octet-stream",
         size=obj.size,
+        key=obj.object_name,
+        path=path.as_posix(),
     )
     return document
 
@@ -51,35 +57,15 @@ async def get_competitive_analysis_documents(
     folder = get_competitive_analysis_folder(product_id)
     objects = await list_objects(folder)
     logger.info(f"Objects: {[o.object_name for o in objects]}")
-    documents = [
+    analyze_competitive_analysis_document_tasks = [
         analyze_competitive_analysis_document(obj)
         for obj in objects
         if obj.is_dir is False
     ]
-    documents = await asyncio.gather(*documents)
+    documents = await async_gather_with_max_concurrent(
+        analyze_competitive_analysis_document_tasks
+    )
     return documents
-
-
-async def get_upload_competitive_analysis_document_url(
-    product_id: str,
-    analysis_document_info: AnalysisDocumentInfo,
-) -> str:
-    extension = analysis_document_info["file_name"].split(".")[-1]
-    document_name = encode_analysis_document_info(analysis_document_info)
-    document_name = f"{document_name}.{extension}"
-    folder = get_competitive_analysis_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    url = await generate_put_object_presigned_url(object_name)
-    return url
-
-
-async def delete_competitive_analysis_document(
-    product_id: str,
-    document_name: str,
-) -> None:
-    folder = get_competitive_analysis_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    await remove_object(object_name)
 
 
 # ================ FOLDERS ====================

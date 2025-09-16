@@ -1,14 +1,17 @@
 from pydantic import BaseModel, Field
 from typing import Any, get_origin, get_args, Union
 
+
+# IGNORE THAT, PREFER EXPLICIT DEFAULTS
 class SafeBase(BaseModel):
     """
     A drop-in replacement for BaseModel that
 
-    • turns every Optional[...] field with no explicit default into =None  
-    • turns every List[...] field with no explicit default into =[]  
+    • turns every Optional[...] field with no explicit default into =None
+    • turns every List[...] field with no explicit default into =[]
     • leaves required scalars (str, int, bool, etc.) untouched
     """
+
     def __init_subclass__(cls, **kwargs):  # runs once per subclass definition
         super().__init_subclass__(**kwargs)
 
@@ -20,7 +23,7 @@ class SafeBase(BaseModel):
             if origin is type(None) or (
                 origin is Union and type(None) in get_args(outer_type)
             ):
-                if field.default is Ellipsis:      # i.e. “required”
+                if field.default is Ellipsis:  # i.e. “required”
                     field.default = None
                     field.required = False
 

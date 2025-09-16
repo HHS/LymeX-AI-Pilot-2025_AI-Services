@@ -17,7 +17,7 @@ async def extract_files_data(
     system_instruction: str,
     user_question: str,
     model_class: type[T],
-):
+) -> T:
     openai_client = get_openai_client()
     logger.info("Extracting data from files: {}", file_paths)
     if not file_paths:
@@ -44,12 +44,11 @@ async def extract_files_data(
                         },
                         {
                             "type": "input_text",
-                            "text": """Ensure that all fields are included and that their data types match the defined schema.
 
+                            "text": """
+Ensure that all fields are included and that their data types match the defined schema.
 Each value should accurately reflect the meaning described in the corresponding field's comment.
-
 Only extract information explicitly found in the document—do not infer, assume, or generate content that is not present.
-
 If a field is missing or the data is unavailable, use the exact string "Not Available".
 """,
                         },

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from beanie import Document, PydanticObjectId
 from pydantic import Field
 from typing import Optional
@@ -18,41 +18,32 @@ from src.modules.performance_testing.schema import (
     SoftwarePerformance,
     SterilityValidation,
     WirelessCoexistence,
+    LLMPredicateRow, 
+    LLMGapFinding,
 )
 
 
 class PerformanceTesting(Document):
-    """MongoDB persistence layer for the performance testing data."""
-
-    product_id: str  # foreign‑key to ProductProfile document
-
-    # Sub‑sections – optional so we can populate them lazily
-    analytical: list[AnalyticalStudy] = Field(default_factory=list)
-    comparison: list[ComparisonStudy] = Field(default_factory=list)
-    clinical: list[ClinicalStudy] = Field(default_factory=list)
-    animal_testing: Optional[AnimalTesting] = None
-    emc_safety: Optional[EMCSafety] = None
-    wireless: Optional[WirelessCoexistence] = None
-    software: Optional[SoftwarePerformance] = None
-    interoperability: Optional[Interoperability] = None
-    biocompatibility: Optional[Biocompatibility] = None
-    sterility: Optional[SterilityValidation] = None
-    shelf_life: Optional[ShelfLife] = None
-    cybersecurity: Optional[CyberSecurity] = None
-
-    # Roll‑up & meta
-    overall_risk_level: Optional[RiskLevel] = None
+    product_id: str
+    analytical: list[AnalyticalStudy] = Field([])
+    comparison: list[ComparisonStudy] = Field([])
+    clinical: list[ClinicalStudy] = Field([])
+    animal_testing: AnimalTesting | None = None
+    emc_safety: EMCSafety | None = None
+    wireless: WirelessCoexistence | None = None
+    software: SoftwarePerformance | None = None
+    interoperability: Interoperability | None = None
+    biocompatibility: Biocompatibility | None = None
+    sterility: SterilityValidation | None = None
+    shelf_life: ShelfLife | None = None
+    cybersecurity: CyberSecurity | None = None
+    overall_risk_level: RiskLevel | None = None
+    magnetic_resonance_safety: Optional[str] = None  # Sterility Assurance Level Q112
+    literature_references_included: Optional[bool] = None # Q113
     status: ModuleStatus = ModuleStatus.PENDING
-    missing_items: list[str] = Field(default_factory=list)
-
-    created_at: date = Field(default_factory=date.today)
-    updated_at: Optional[date] = None
-
-    # Fast look‑up by product without strict ObjectId typing hassles
-    product_id: str = Field(..., description="ID of the associated product", index=True)
-
+    missing_items: list[str] = Field([])
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     class Settings:
         name = "performance_testing"  # Mongo collection name
@@ -70,21 +61,33 @@ class PerformanceTesting(Document):
 
 
 class AnalyzePerformanceTestingProgress(Document):
-    """
-    One document per product - tracks how many performance-testing
-    sub-sections have been processed.
-    """
+    product_id: str
+    total_files: int
+    processed_files: int
+    updated_at: datetime
 
-    product_id: str = Field(..., index=True)
-
-    total_sections: int  # how many sections we expect to run
-    processed_sections: int = 0  # incremented after each section
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    class Settings:
+        name = "analyze_performance_testing_progress"
 
     class Config:
         json_encoders = {
             PydanticObjectId: str,
         }
 
+class PredicateLLMAnalysis(Document):
+    product_id: str
+    product_name: str
+    competitor_id: str | None = None
+    competitor_name: str | None = None
+    rows: list[LLMPredicateRow] = Field(default_factory=list)
+    gaps: list[LLMGapFinding] = Field(default_factory=list)
+    model_used: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime | None = None
+
     class Settings:
-        name = "performance_testing_analysis_progress"
+        name = "predicate_llm_analysis"
+
+    async def save(self, *args, **kwargs):
+        self.updated_at = datetime.now(timezone.utc)
+        return await super().save(*args, **kwargs)

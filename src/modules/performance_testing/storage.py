@@ -1,12 +1,11 @@
 import asyncio
+from datetime import datetime
 from typing import TypedDict
 import mimetypes
 from loguru import logger
 from src.infrastructure.minio import (
     generate_get_object_presigned_url,
-    generate_put_object_presigned_url,
     list_objects,
-    remove_object,
 )
 from src.modules.performance_testing.schema import PerformanceTestingDocumentResponse
 from src.modules.product.storage import get_product_folder
@@ -15,30 +14,41 @@ import fastavro
 import io
 from minio.datatypes import Object
 
+from src.utils.download_minio_files import download_minio_file
+
 
 class TestingDocumentInfo(TypedDict):
     file_name: str
     author: str
-    competitor_name: str
 
 
 async def analyze_performance_testing_document(
     obj: Object,
 ) -> PerformanceTestingDocumentResponse:
-    document_name = obj.object_name.split("/")[-1]
+    object_name = obj.object_name
+    if not object_name:
+        raise ValueError("Object name is empty")
+    logger.info(f"Analyzing performance testing document: {object_name}")
+    document_name = object_name.split("/")[-1]
     testing_document_info = analyze_testing_document_info(document_name.split(".")[0])
     file_name = testing_document_info["file_name"]
+    path = await download_minio_file(object_name)
+    logger.info(f"Downloaded file to: {path}")
+
     document = PerformanceTestingDocumentResponse(
         document_name=document_name,
         file_name=file_name,
-        url=await generate_get_object_presigned_url(obj.object_name),
-        competitor_name=testing_document_info["competitor_name"],
-        uploaded_at=obj.last_modified.isoformat(),
+        url=await generate_get_object_presigned_url(object_name),
+        uploaded_at=obj.last_modified.isoformat()
+        if obj.last_modified
+        else datetime.now().isoformat(),
         author=testing_document_info["author"],
         content_type=obj.content_type
         or mimetypes.guess_type(file_name)[0]
         or "application/octet-stream",
-        size=obj.size,
+        size=obj.size or 0,
+        key=object_name,
+        path=path.as_posix(),
     )
     return document
 
@@ -56,28 +66,6 @@ async def get_performance_testing_documents(
     ]
     documents = await asyncio.gather(*documents)
     return documents
-
-
-async def get_upload_performance_testing_document_url(
-    product_id: str,
-    testing_document_info: TestingDocumentInfo,
-) -> str:
-    extension = testing_document_info["file_name"].split(".")[-1]
-    document_name = encode_testing_document_info(testing_document_info)
-    document_name = f"{document_name}.{extension}"
-    folder = get_performance_testing_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    url = await generate_put_object_presigned_url(object_name)
-    return url
-
-
-async def delete_performance_testing_document(
-    product_id: str,
-    document_name: str,
-) -> None:
-    folder = get_performance_testing_folder(product_id)
-    object_name = f"{folder}/{document_name}"
-    await remove_object(object_name)
 
 
 # ================ FOLDERS ====================
@@ -98,7 +86,6 @@ TESTING_DOCUMENT_INFO_SCHEMA = {
     "fields": [
         {"name": "file_name", "type": "string"},
         {"name": "author", "type": "string"},
-        {"name": "competitor_name", "type": "string"},
     ],
 }
 

@@ -1,7 +1,18 @@
 from enum import Enum
-from typing import Optional, List
-from pydantic import Field
-from src.utils.base import SafeBase
+from pydantic import BaseModel, Field
+
+
+class ProductProfileDocumentResponse(BaseModel):
+    document_name: str = Field(..., description="Name of the product profile document")
+    file_name: str = Field(..., description="Name of the document")
+    url: str = Field(..., description="URL to access the document")
+    uploaded_at: str = Field(
+        ..., description="Date and time when the document was uploaded"
+    )
+    author: str = Field(..., description="Author of the document")
+    size: int = Field(..., description="Size of the document in bytes")
+    key: str = Field(..., description="Key of the document in the storage system")
+    path: str = Field(..., description="Path to the document in the local machine")
 
 
 class ClassificationSource(str, Enum):
@@ -11,34 +22,47 @@ class ClassificationSource(str, Enum):
     NOT_AVAILABLE = "not available"
 
 
-class RegulatoryClassification(SafeBase):
+class RegulatoryClassification(BaseModel):
     organization: str = Field("Not Available", description="Organization name")
     classification: str = Field("Not Available", description="Classification")
     source: ClassificationSource = ClassificationSource.NOT_AVAILABLE
-    product_code: Optional[str] = None
-    regulation_number: Optional[str] = None
+    product_code: str = Field("Not Available", description="Product code")
+    regulation_number: str = Field("Not Available", description="Regulation number")
 
 
-class DeviceCharacteristics(SafeBase):
-    device_description: str = Field("Not Available", description="Device Description")
-    principle_of_operation: str = Field(
-        "Not Available", description="Principle of Operation"
+class Feature(BaseModel):
+    name: str = Field("Not Available", description="Name")
+    description: str = Field("Not Available", description="Description")
+    icon: str | None = Field(None, description="Icon representing the feature")
+
+
+class ProductProfileSchemaBase:
+    product_trade_name: str = Field(
+        "Not Available", description="Trade name of the product"
     )
-    interpretation_of_results: str = Field(
-        "Not Available", description="Interpretation of Results"
+    model_number: str = Field(
+        "Not Available", description="Model number of the product"
     )
-    # generic_name: Optional[str] = None
-    storage_conditions: Optional[str] = None
-    shelf_life: Optional[str] = None
-    sterility_status: Optional[str] = None
-    software_present: Optional[str] = None
-    single_use_or_reprocessed_single_use_device: Optional[str] = None
-    animal_derived_materials: Optional[str] = None
+    reference_number: str = Field(
+        "Not Available", description="Reference number for the product"
+    )
+    description: str = Field("Not Available", description="Description of the product")
+    generic_name: str = Field(
+        "Not Available", description="Generic name of the product"
+    )
 
+    regulatory_pathway: str = Field(
+        "Not Available", description="Regulatory pathway for product approval"
+    )
+    regulatory_classifications: list[RegulatoryClassification] = Field(
+        [],
+        description="List of regulatory classifications",
+    )
 
-class PerformanceCharacteristics(SafeBase):
+    product_code: str = Field("NAN", description="Product code. Must be 3 characters.")
+    regulation_number: str = Field("Not Available", description="Regulation Number")
     analytical_sensitivity: str = Field(
-        "Not Available", description="Analytical Senstivity"
+        "Not Available", description="Analytical Sensitivity"
     )
     analytical_specificity: str = Field(
         "Not Available", description="Analytical Specificity"
@@ -52,158 +76,70 @@ class PerformanceCharacteristics(SafeBase):
     performance_summary: str = Field(
         "Not Available", description="Overall Performance Summary"
     )
-    performance_references: list[str] = Field(
-        default_factory=list, description="Performance References"
-    )
-
-
-class Feature(SafeBase):
-    name: str = Field("Not Available", description="Name")
-    description: str = Field("Not Available", description="Description")
-    icon: str | None = Field(None, description="Icon representing the feature")
-
-
-class Performance(SafeBase):
-    speed: int = Field(-1, description="Speed")
-    reliability: int = Field(-1, description="Reliability")
-
-
-class ProductProfileDocumentResponse(SafeBase):
-    document_name: str = Field(..., description="Name of the product profile document")
-    file_name: str = Field(..., description="Name of the document")
-    url: str = Field(..., description="URL to access the document")
-    uploaded_at: str = Field(
-        ..., description="Date and time when the document was uploaded"
-    )
-    author: str = Field(..., description="Author of the document")
-    size: int = Field(..., description="Size of the document in bytes")
-
-
-# Purely for OpenAI function calling (fields from YAML)
-class ProductProfileFunctionSchema(SafeBase):
-    device_type: str
-    disease_condition: str
-    patient_population: str
-    use_environment: str
-    combination_use: str
-    life_supporting: str
-    specimen_type: str
-    special_attributes: str
-
-    product_trade_name: Optional[str] = None
-    model_number: Optional[str] = None
-    generic_name: Optional[str] = None
-
-    warnings: List[str] = Field(default_factory=list)
-    limitations: List[str] = Field(default_factory=list)
-    contraindications: List[str] = Field(default_factory=list)
-
-    instructions_for_use: List[str] = Field(
-        default_factory=list, description="Step-by-step IFU extracted from labeling"
-    )
-
-
-class ProductProfileSchema(SafeBase):
-    product_id: str = Field(..., description="Unique identifier for the product")
-    product_trade_name: str = Field(
-        "Not Available", description="Trade name of the product"
-    )
-    model_number: Optional[str] = Field(
-        "Not Available", description="Model number of the product"
-    )
-    reference_number: str = Field(
-        "Not Available", description="Reference number for the product"
-    )
-    description: str = Field("Not Available", description="Description of the product")
-    generic_name: Optional[str] = Field(
-        "Not Available", description="Generic name of the product"
-    )
-
-    regulatory_pathway: Optional[str] = Field(
-        "Not Available", description="Regulatory pathway for product approval"
-    )
-    regulatory_classifications: list[RegulatoryClassification] = Field(
-        default_factory=RegulatoryClassification,
-        description="List of regulatory classifications",
-    )
-    product_code: Optional[str] = Field("Not Available", description="Product code")
-    regulation_number: Optional[str] = Field(
-        "Not Available", description="Regulation Number"
-    )
-
-    device_characteristics: list[DeviceCharacteristics] = Field(
-        default_factory=DeviceCharacteristics,
-        description="List of device characteristics",
-    )
-    performance_characteristics: list[PerformanceCharacteristics] = Field(
-        default_factory=PerformanceCharacteristics,
-        description="List of performance characteristics",
-    )
+    performance_references: list[str] = Field([], description="Performance References")
     device_description: str = Field(
         "Not Available", description="Description of the device"
     )
-    features: list[Feature] = Field(
-        default_factory=Feature, description="List of device features"
-    )
-    claims: list[str] = Field(
-        default_factory=list, description="Claims made about the product"
-    )
-    conflict_alerts: list[str] = Field(
-        default_factory=list, description="Alerts for any conflicts"
-    )
+    features: list[Feature] = Field([], description="List of device features")
+    claims: list[str] = Field([], description="Claims made about the product")
+    conflict_alerts: list[str] = Field([], description="Alerts for any conflicts")
     test_principle: str = Field(
         "Not Available", description="Principle of the test performed by the device"
     )
     comparative_claims: list[str] = Field(
-        default_factory=list, description="Comparative claims with other products"
+        [], description="Comparative claims with other products"
     )
-    fda_cleared: bool | None = Field(None, description="FDA clearance status")
-    fda_approved: bool | None = Field(None, description="FDA approval status")
-    ce_marked: bool | None = Field(None, description="CE marking status")
-
+    fda_cleared: bool | None = Field(
+        None, description="FDA clearance status (None if not applicable)"
+    )
+    fda_approved: bool | None = Field(
+        None, description="FDA approval status (None if not applicable)"
+    )
+    ce_marked: bool | None = Field(
+        None, description="CE marking status (None if not applicable)"
+    )
     device_ifu_description: str = Field(
         "Not available", description="Description of instructions for use"
     )
     instructions_for_use: list[str] = Field(
-        default_factory=list, description="Step-by-step instructions for use"
+        [], description="Step-by-step instructions for use"
     )
-
-    storage_conditions: Optional[str] = Field(
-        None, description="Storage conditions for the product"
+    principle_of_operation: str = Field(
+        "Not Available", description="Principle of Operation"
     )
-    shelf_life: Optional[str] = Field(None, description="Shelf life of the product")
-    sterility_status: Optional[str] = Field(
-        None, description="Sterility status of the product"
+    interpretation_of_results: str = Field(
+        "Not Available", description="Interpretation of Results"
     )
-
-    warnings: list[str] = Field(
-        default_factory=list, description="Warnings associated with the product"
+    generic_name: str = Field("Not Available", description="Generic Name")
+    storage_conditions: str = Field("Not Available", description="Storage Conditions")
+    shelf_life: str = Field("Not Available", description="Shelf Life")
+    sterility_status: str = Field("Not Available", description="Sterility Status")
+    software_present: str = Field("Not Available", description="Software Present")
+    single_use_or_reprocessed_single_use_device: str = Field(
+        "Not Available", description="Single Use or Reprocessed Single Use Device"
     )
-    limitations: list[str] = Field(
-        default_factory=list, description="Limitations of the product"
+    animal_derived_materials: str = Field(
+        "Not Available", description="Animal Derived Materials"
     )
+    warnings: list[str] = Field([], description="Warnings associated with the product")
+    limitations: list[str] = Field([], description="Limitations of the product")
     contraindications: list[str] = Field(
-        default_factory=list, description="Contraindications for product use"
+        [], description="Contraindications for product use"
     )
-
     confidence_score: float = Field(
         0.0, description="Confidence score for the product profile"
     )
     sources: list[str] = Field(
-        default_factory=list,
+        [],
         description="Sources of information for the product profile",
     )
-    performance: Performance = Field(
-        default_factory=Performance,
-        description="Performance metrics for the product",
-    )
-    price: Optional[int] = Field(0, description="Price of the product")
+    speed: int = Field(-1, description="Speed")
+    reliability: int = Field(-1, description="Reliability")
+    price: int = Field(None, description="Price of the product")
     instructions: list[str] = Field(
-        default_factory=list, description="General instructions for the product"
+        [], description="General instructions for the product"
     )
     type_of_use: str = Field("Not Available", description="Type of use for the product")
-
-    # YAML-derived fields
     device_type: str = Field("Not Available", description="Type of device")
     disease_condition: str = Field(
         "Not Available", description="Disease or condition addressed by the product"
@@ -224,3 +160,6 @@ class ProductProfileSchema(SafeBase):
     special_attributes: str = Field(
         "Not Available", description="Special attributes of the product"
     )
+
+
+class ProductProfileSchema(BaseModel, ProductProfileSchemaBase): ...

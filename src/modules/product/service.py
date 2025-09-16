@@ -3,14 +3,14 @@ from src.infrastructure.minio import generate_get_object_presigned_url
 from src.modules.product_profile.schema import ProductProfileDocumentResponse
 from minio.datatypes import Object
 
-from src.modules.product_profile.storage import analyze_profile_document_info
+from src.modules.product_profile.storage import parse_profile_document_info
 
 
 async def analyze_product_profile_document(
     obj: Object,
 ) -> ProductProfileDocumentResponse:
     document_name = obj.object_name.split("/")[-1]
-    profile_document_info = analyze_profile_document_info(document_name.split(".")[0])
+    profile_document_info = parse_profile_document_info(document_name.split(".")[0])
     file_name = profile_document_info["file_name"]
     document = ProductProfileDocumentResponse(
         document_name=document_name,

@@ -44,14 +44,10 @@ class RegulatoryBackgroundSchema(BaseModel, RegulatoryBackgroundBase): ...
 
 
 class RegulatoryBackgroundDocumentResponse(BaseModel):
-    document_name: str = Field(
-        ..., description="Name of the regulatory background document"
-    )
+    document_name: str = Field(..., description="Name of the regulatory background document")
     file_name: str = Field(..., description="Name of the document")
     url: str = Field(..., description="URL to access the document")
-    uploaded_at: str = Field(
-        ..., description="Date and time when the document was uploaded"
-    )
+    uploaded_at: str = Field(..., description="Date and time when the document was uploaded")
     author: str = Field(..., description="Author of the document")
     size: int = Field(..., description="Size of the document in bytes")
     key: str = Field(..., description="Key of the document in the storage system")

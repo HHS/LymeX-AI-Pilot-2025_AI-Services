@@ -16,6 +16,7 @@ You are an expert in FDA regulatory documentation for medical devices.
 Your task:
 - Read and analyze all uploaded FDA regulatory background documents, including meeting minutes, feedback letters, submissions, and supporting material.
 - Summarize the regulatory background in three sections: `summary`, `findings`, and `conflicts`.
+
 **Output JSON structure:**
 
 summary:
@@ -49,6 +50,7 @@ If you cannot find information for a field, mark `status` as "missing" and provi
 Do not invent facts.
 Return only valid JSON matching the schema exactly.
 """
+
 user_question = """
 Analyze the uploaded FDA regulatory background documents and produce a structured JSON
 with `summary`, `findings`, and `conflicts` as described in the system instructions.

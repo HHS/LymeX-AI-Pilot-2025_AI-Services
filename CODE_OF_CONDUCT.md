@@ -1,8 +1,7 @@
 # LymeX Regulatory Support (AI) Code of Conduct
 
 ## HHS Values
-HHS is dedicated to providing a safe, harassment-free, positive environment for everyone, regardless of race, ethnicity, sex, sexual orientation, religion, or disability. 
-HHS does not tolerate harassment of members of our community under any circumstances.  
+HHS is dedicated to providing a safe, harassment-free, positive environment for everyone, regardless of race, ethnicity, sex, sexual orientation, religion, or disability. HHS does not tolerate harassment of members of our community under any circumstances.  
 
 By contributing to this repository, you agree to adhere to the rules set forth in this document and uphold the  core values underpinning the HHS community to foster a community built on openness, kindness, and collective benefit. These core values also serve as the code of conduct foundation for HHS Open Source repositories:  
 

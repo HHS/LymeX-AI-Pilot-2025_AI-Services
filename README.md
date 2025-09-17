@@ -26,7 +26,7 @@ In the spirit of [Executive Order 14028 - Improving the Nation’s Cyber Securit
 
 For more information and resources about SBOMs, visit: https://www.cisa.gov/sbom.
 
-## Public domain
+## License
 
 Licensed under the Apache License, Version 2.0 (the "License"); 
 you may not use this file except in compliance with the License.

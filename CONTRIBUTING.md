@@ -84,7 +84,7 @@ We adhere to the [HHS Open Source Policy](https://www.hhs.gov/sites/default/file
 
 For more information about our Security, Vulnerability, and Responsible Disclosure Policies, see [SECURITY.md](SECURITY.md).
 
-## Public domain
+## License
 
 Licensed under the Apache License, Version 2.0 (the "License"); 
 you may not use this file except in compliance with the License.

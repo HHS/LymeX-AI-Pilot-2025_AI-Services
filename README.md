@@ -1,4 +1,4 @@
-# NASA-NOIS2-192-AI-Services
+# LymeX-AI-Pilot-2025 AI-Services
 
 AI-powered regulatory support tool for Lyme disease diagnostics.
 
